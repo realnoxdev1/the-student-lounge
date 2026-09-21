@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101114" />
+    <meta name="description" content="The Student Lounge is a quiet corner for videos, games, and good company." />
+    <title>The Student Lounge</title>
+    <link rel="icon" type="image/png" href="logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="brand" href="#home" aria-label="The Student Lounge home">
+          <img src="logo.png" alt="The Student Lounge logo" />
+          <span><strong>The Student</strong><small>Lounge</small></span>
+        </a>
+        <nav class="main-nav" aria-label="Main navigation">
+          <a href="#home" data-nav="home">Home</a>
+          <a href="#people" data-nav="people">People</a>
+          <a class="nav-request" href="#requests" data-nav="requests">Request a drop</a>
+        </nav>
+      </header>
+
+      <main id="app" aria-live="polite"></main>
+
+      <footer class="site-footer">
+        <span>THE STUDENT LOUNGE</span>
+        <span>made for slow afternoons &amp; good company</span>
+      </footer>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
