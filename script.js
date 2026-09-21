@@ -10,6 +10,7 @@ const people = [
 ];
 
 const app = document.querySelector("#app");
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const videoUrl = (id) => `https://www.youtube.com/embed/${id}`;
 const themeStorageKey = "student-lounge-theme";
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -17,6 +18,7 @@ const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
   document.documentElement.dataset.theme = activeTheme;
+  themeColorMeta?.setAttribute("content", activeTheme === "dark" ? "#111315" : "#f4f1eb");
 }
 
 function savedTheme() {
@@ -33,8 +35,17 @@ function mediaCard(title, id, index) {
 }
 
 function gameCard([title, url], index) {
-  return `<article class="media-card game-card"><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open game fullscreen">Full screen</button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3></div></article>`;
+  return `<article class="media-card game-card"><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
 }
+
+document.addEventListener("fullscreenchange", () => {
+  document.querySelectorAll("[data-fullscreen]").forEach((button) => {
+    const isActive = button.closest(".media-frame") === document.fullscreenElement;
+    button.classList.toggle("is-active", isActive);
+    button.querySelector("span:last-child").textContent = isActive ? "Exit full screen" : "Full screen";
+    button.setAttribute("aria-label", isActive ? "Exit full screen" : button.title);
+  });
+});
 
 function homePage() {
   return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section>`;
@@ -58,8 +69,17 @@ function wirePageControls(route) {
   document.querySelectorAll("[data-fullscreen]").forEach((button) => {
     button.addEventListener("click", async () => {
       const frame = button.closest(".media-frame");
-      if (!document.fullscreenElement) await frame.requestFullscreen?.();
-      else await document.exitFullscreen?.();
+      if (!frame) return;
+      try {
+        if (document.fullscreenElement === frame) {
+          await document.exitFullscreen?.();
+          return;
+        }
+        if (document.fullscreenElement) await document.exitFullscreen?.();
+        await frame.requestFullscreen?.();
+      } catch (error) {
+        console.warn("Unable to enter game fullscreen mode.", error);
+      }
     });
   });
 
