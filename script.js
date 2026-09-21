@@ -11,9 +11,20 @@ const people = [
 
 const app = document.querySelector("#app");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-const videoUrl = (id) => `https://www.youtube.com/embed/${id}`;
+const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${encodeURIComponent(window.location.origin)}&rel=0&playsinline=1`;
+const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
+const visitStorageKey = "student-lounge-visits";
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+function recordVisit() {
+  const visit = { openedAt: Date.now() };
+  const visits = JSON.parse(localStorage.getItem(visitStorageKey) || "[]");
+  visits.unshift(visit);
+  localStorage.setItem(visitStorageKey, JSON.stringify(visits.slice(0, 50)));
+}
+
+recordVisit();
 
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
@@ -31,7 +42,7 @@ deviceTheme.addEventListener?.("change", () => {
 });
 
 function mediaCard(title, id, index) {
-  return `<article class="media-card"><div class="media-frame"><iframe src="${videoUrl(id)}" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3></div></article>`;
+  return `<article class="media-card"><div class="media-frame"><iframe src="${videoUrl(id)}" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 function gameCard([title, url], index) {
@@ -63,6 +74,19 @@ function requestsPage() {
 
 function settingsPage() {
   return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><div class="theme-control"><span>Theme</span><div class="theme-options" role="group" aria-label="Color mode"><button type="button" class="theme-option" data-theme-option="auto"><strong>Device</strong><small>Follow device</small></button><button type="button" class="theme-option" data-theme-option="light"><strong>Light</strong><small>Soft paper</small></button><button type="button" class="theme-option" data-theme-option="dark"><strong>Dark</strong><small>Low light</small></button></div></div></section>`;
+}
+
+function formatVisitTime(timestamp) {
+  const date = new Date(timestamp);
+  const hours = date.getHours() % 12 || 12;
+  const clock = [hours, date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, "0")).join(":");
+  return `${clock}:${String(date.getMilliseconds()).padStart(3, "0")} ${date.getHours() >= 12 ? "PM" : "AM"}`;
+}
+
+function adminPage() {
+  const visits = JSON.parse(localStorage.getItem(visitStorageKey) || "[]");
+  const visitRows = visits.length ? visits.map(({ openedAt }) => `<li><span>The Student Lounge opened</span><time datetime="${new Date(openedAt).toISOString()}">${formatVisitTime(openedAt)}</time></li>`).join("") : "<li><span>No visits recorded yet.</span></li>";
+  return `<section class="page-head admin-head"><span class="eyebrow">Private room</span><h1>Activity log.</h1><p>This page is only available by entering <strong>#admin</strong> in the address bar. Times are stored on this browser.</p></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="eyebrow">Recent openings</span><h2>Someone came in.</h2></div><span class="admin-count">${visits.length} recorded</span></div><ol class="visit-list">${visitRows}</ol></section>`;
 }
 
 function wirePageControls(route) {
@@ -102,7 +126,7 @@ function wirePageControls(route) {
 function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
-  app.innerHTML = route === "home" ? homePage() : route === "requests" ? requestsPage() : route === "settings" ? settingsPage() : person ? personPage(person) : homePage();
+  app.innerHTML = route === "home" ? homePage() : route === "requests" ? requestsPage() : route === "settings" ? settingsPage() : route === "admin" ? adminPage() : person ? personPage(person) : homePage();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person ? "people" : route)));
   wirePageControls(route);
   window.scrollTo({ top: 0, behavior: "smooth" });
