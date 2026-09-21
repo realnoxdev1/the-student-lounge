@@ -111,7 +111,13 @@ h1 em { color: var(--blue); font-style: normal; }
 .settings-panel h2 { margin: 8px 0 5px; font-family: Fraunces, serif; font-size: 2.2rem; font-weight: 500; letter-spacing: -.05em; }
 .settings-panel p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.55; }
 .theme-control { display: grid; gap: 8px; min-width: 180px; color: var(--muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
-.theme-control select { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); font: inherit; font-size: .88rem; font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; }
+.theme-options { display: flex; gap: 8px; margin-top: 4px; }
+.theme-option { min-width: 92px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: var(--paper); font: inherit; text-align: left; cursor: pointer; transition: border-color .2s ease, color .2s ease, background .2s ease, transform .2s ease; }
+.theme-option:hover { transform: translateY(-2px); border-color: var(--blue); color: var(--ink); }
+.theme-option.active { border-color: var(--blue); color: var(--ink); background: var(--blue-soft); box-shadow: inset 0 0 0 1px var(--blue); }
+.theme-option strong, .theme-option small { display: block; }
+.theme-option strong { font-size: .82rem; text-transform: none; letter-spacing: 0; }
+.theme-option small { margin-top: 4px; font-size: .61rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
 .site-footer { display: flex; justify-content: space-between; padding: 24px 0 35px; border-top: 1px solid var(--line); color: var(--muted); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; }
 
 @media (max-width: 760px) {
@@ -131,6 +137,7 @@ h1 em { color: var(--blue); font-style: normal; }
   .request-layout { grid-template-columns: 1fr; gap: 22px; padding-top: 10px; }
   .settings-panel { display: block; }
   .theme-control { margin-top: 25px; }
+  .theme-options { flex-wrap: wrap; }
   .form-card iframe { min-height: 780px; }
   .site-footer { display: block; line-height: 2; }
 }

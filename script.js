@@ -51,7 +51,7 @@ function requestsPage() {
 }
 
 function settingsPage() {
-  return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><label class="theme-control" for="theme-select"><span>Theme</span><select id="theme-select"><option value="auto">Device</option><option value="light">Light</option><option value="dark">Dark</option></select></label></section>`;
+  return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><div class="theme-control"><span>Theme</span><div class="theme-options" role="group" aria-label="Color mode"><button type="button" class="theme-option" data-theme-option="auto"><strong>Device</strong><small>Follow device</small></button><button type="button" class="theme-option" data-theme-option="light"><strong>Light</strong><small>Soft paper</small></button><button type="button" class="theme-option" data-theme-option="dark"><strong>Dark</strong><small>Low light</small></button></div></div></section>`;
 }
 
 function wirePageControls(route) {
@@ -64,12 +64,18 @@ function wirePageControls(route) {
   });
 
   if (route === "settings") {
-    const select = document.querySelector("#theme-select");
-    select.value = savedTheme();
-    select.addEventListener("change", () => {
-      localStorage.setItem(themeStorageKey, select.value);
-      applyTheme(select.value);
+    const options = document.querySelectorAll("[data-theme-option]");
+    const syncOptions = () => options.forEach((option) => {
+      const selected = option.dataset.themeOption === savedTheme();
+      option.classList.toggle("active", selected);
+      option.setAttribute("aria-pressed", selected);
     });
+    options.forEach((option) => option.addEventListener("click", () => {
+      localStorage.setItem(themeStorageKey, option.dataset.themeOption);
+      applyTheme(option.dataset.themeOption);
+      syncOptions();
+    }));
+    syncOptions();
   }
 }
 
