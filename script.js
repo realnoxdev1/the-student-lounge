@@ -48,7 +48,7 @@ deviceTheme.addEventListener?.("change", () => {
 });
 
 function mediaCard(title, id, index) {
-  return `<article class="media-card"><div class="media-frame"><iframe src="${videoUrl(id)}" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
+  return `<article class="media-card video-card"><div class="media-frame video-frame"><div class="volume-warning" data-video-warning><span class="eyebrow">Volume check</span><p>This video may start louder than expected. Check your volume before continuing.</p><button class="button primary" type="button" data-watch-video data-video-id="${id}">Watch anyway</button></div></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 function gameCard([title, url], index) {
@@ -96,6 +96,20 @@ function adminPage() {
 }
 
 function wirePageControls(route) {
+  document.querySelectorAll("[data-watch-video]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const frame = button.closest(".media-frame");
+      const iframe = document.createElement("iframe");
+      iframe.src = videoUrl(button.dataset.videoId);
+      iframe.title = button.closest(".media-card").querySelector("h3").textContent;
+      iframe.loading = "lazy";
+      iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+      iframe.referrerPolicy = "origin-when-cross-origin";
+      iframe.allowFullscreen = true;
+      frame.replaceChildren(iframe);
+    });
+  });
+
   document.querySelectorAll("[data-fullscreen]").forEach((button) => {
     button.addEventListener("click", async () => {
       const frame = button.closest(".media-frame");
