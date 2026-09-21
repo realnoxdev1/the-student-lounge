@@ -11,13 +11,29 @@ const people = [
 
 const app = document.querySelector("#app");
 const videoUrl = (id) => `https://www.youtube.com/embed/${id}`;
+const themeStorageKey = "student-lounge-theme";
+const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+function applyTheme(theme) {
+  const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
+  document.documentElement.dataset.theme = activeTheme;
+}
+
+function savedTheme() {
+  return localStorage.getItem(themeStorageKey) || "auto";
+}
+
+applyTheme(savedTheme());
+deviceTheme.addEventListener?.("change", () => {
+  if (savedTheme() === "auto") applyTheme("auto");
+});
 
 function mediaCard(title, id, index) {
   return `<article class="media-card"><div class="media-frame"><iframe src="${videoUrl(id)}" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3></div></article>`;
 }
 
 function gameCard([title, url], index) {
-  return `<article class="media-card game-card"><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allowfullscreen></iframe></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3></div></article>`;
+  return `<article class="media-card game-card"><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open game fullscreen">Full screen</button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3></div></article>`;
 }
 
 function homePage() {
@@ -34,11 +50,35 @@ function requestsPage() {
   return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a drop.</h1><p>Know a video, song, or game that belongs here? Send it through and we will make room.</p></section><section class="request-layout"><div class="request-note"><h2>Leave a little something for the room.</h2><p>Use the form to suggest a video or game. It opens in the panel beside this note, so you never have to leave the lounge.</p><a class="button" href="https://forms.gle/fc5mWuPjdMgMvXL58" target="_blank" rel="noreferrer">Open form in new tab ↗</a></div><div class="form-card"><iframe src="https://forms.gle/fc5mWuPjdMgMvXL58" title="Request a video or game">Loading…</iframe></div></section>`;
 }
 
+function settingsPage() {
+  return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><label class="theme-control" for="theme-select"><span>Theme</span><select id="theme-select"><option value="auto">Device</option><option value="light">Light</option><option value="dark">Dark</option></select></label></section>`;
+}
+
+function wirePageControls(route) {
+  document.querySelectorAll("[data-fullscreen]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const frame = button.closest(".media-frame");
+      if (!document.fullscreenElement) await frame.requestFullscreen?.();
+      else await document.exitFullscreen?.();
+    });
+  });
+
+  if (route === "settings") {
+    const select = document.querySelector("#theme-select");
+    select.value = savedTheme();
+    select.addEventListener("change", () => {
+      localStorage.setItem(themeStorageKey, select.value);
+      applyTheme(select.value);
+    });
+  }
+}
+
 function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
-  app.innerHTML = route === "home" ? homePage() : route === "requests" ? requestsPage() : person ? personPage(person) : homePage();
+  app.innerHTML = route === "home" ? homePage() : route === "requests" ? requestsPage() : route === "settings" ? settingsPage() : person ? personPage(person) : homePage();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person ? "people" : route)));
+  wirePageControls(route);
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 

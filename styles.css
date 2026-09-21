@@ -10,6 +10,16 @@
   --shadow: 0 22px 55px rgba(28, 33, 40, .10);
 }
 
+:root[data-theme="dark"] {
+  --ink: #f4f1eb;
+  --muted: #a4aaa8;
+  --paper: #111315;
+  --card: #1a1d20;
+  --blue-soft: #19395e;
+  --line: rgba(244, 241, 235, .14);
+  --shadow: 0 22px 55px rgba(0, 0, 0, .28);
+}
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body {
@@ -28,6 +38,7 @@ body::before {
   background-size: 7px 7px;
   mask-image: linear-gradient(to bottom, black, transparent 85%);
 }
+:root[data-theme="dark"] body::before { background-image: radial-gradient(rgba(255,255,255,.06) .7px, transparent .7px); }
 a { color: inherit; text-decoration: none; }
 .site-shell { width: min(1180px, calc(100% - 40px)); margin: auto; position: relative; }
 .site-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 0; }
@@ -39,6 +50,7 @@ a { color: inherit; text-decoration: none; }
 .main-nav { display: flex; align-items: center; gap: 27px; font-size: .84rem; font-weight: 600; }
 .main-nav a { color: #686b6c; transition: color .2s ease; }
 .main-nav a:hover, .main-nav a.active { color: var(--ink); }
+.main-nav a { color: var(--muted); }
 .main-nav .nav-request { color: var(--ink); border: 1px solid var(--line); padding: 11px 16px; border-radius: 999px; background: rgba(255,255,255,.42); }
 .main-nav .nav-request:hover { border-color: var(--blue); color: var(--blue); }
 
@@ -78,6 +90,10 @@ h1 em { color: var(--blue); font-style: normal; }
 .media-card.wide { grid-column: span 2; }
 .media-frame { aspect-ratio: 16 / 10; background: #161719; }
 .media-frame iframe { width: 100%; height: 100%; display: block; border: 0; }
+.fullscreen-button { position: absolute; right: 12px; bottom: 12px; padding: 8px 11px; border: 1px solid rgba(255,255,255,.3); border-radius: 999px; color: white; background: rgba(0,0,0,.62); font: inherit; font-size: .7rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(8px); }
+.fullscreen-button:hover { background: var(--blue); }
+.media-frame:fullscreen { display: grid; place-items: center; background: #000; }
+.media-frame:fullscreen iframe { width: 100vw; height: 100vh; }
 .media-info { padding: 16px 18px 18px; }
 .media-info small { color: var(--blue); font-size: .68em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .media-info h3 { margin: 7px 0 0; font-family: Fraunces, serif; font-size: 1.2rem; font-weight: 500; }
@@ -91,6 +107,11 @@ h1 em { color: var(--blue); font-style: normal; }
 .request-note .button { border-color: white; background: white; color: var(--ink); }
 .form-card { padding: 10px; border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); }
 .form-card iframe { display: block; width: 100%; min-height: 680px; border: 0; border-radius: 16px; }
+.settings-panel { display: flex; justify-content: space-between; gap: 30px; align-items: center; margin: 10px 0 110px; padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); box-shadow: var(--shadow); }
+.settings-panel h2 { margin: 8px 0 5px; font-family: Fraunces, serif; font-size: 2.2rem; font-weight: 500; letter-spacing: -.05em; }
+.settings-panel p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.55; }
+.theme-control { display: grid; gap: 8px; min-width: 180px; color: var(--muted); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.theme-control select { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: var(--paper); font: inherit; font-size: .88rem; font-weight: 600; text-transform: none; letter-spacing: 0; cursor: pointer; }
 .site-footer { display: flex; justify-content: space-between; padding: 24px 0 35px; border-top: 1px solid var(--line); color: var(--muted); font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; }
 
 @media (max-width: 760px) {
@@ -108,6 +129,8 @@ h1 em { color: var(--blue); font-style: normal; }
   .section-heading { display: block; }
   .section-heading p { margin-top: 12px; }
   .request-layout { grid-template-columns: 1fr; gap: 22px; padding-top: 10px; }
+  .settings-panel { display: block; }
+  .theme-control { margin-top: 25px; }
   .form-card iframe { min-height: 780px; }
   .site-footer { display: block; line-height: 2; }
 }
