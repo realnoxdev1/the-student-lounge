@@ -15,6 +15,7 @@ const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
 const visitStorageKey = "student-lounge-visits";
+const visitLogVersionKey = "student-lounge-visits-version";
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
 
 function recordVisit() {
@@ -24,7 +25,12 @@ function recordVisit() {
   localStorage.setItem(visitStorageKey, JSON.stringify(visits.slice(0, 50)));
 }
 
-recordVisit();
+if (localStorage.getItem(visitLogVersionKey) !== "2") {
+  localStorage.removeItem(visitStorageKey);
+  localStorage.setItem(visitLogVersionKey, "2");
+}
+
+if (window.location.hash.slice(1) !== "admin") recordVisit();
 
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
