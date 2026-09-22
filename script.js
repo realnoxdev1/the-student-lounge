@@ -17,6 +17,32 @@ const themeStorageKey = "student-lounge-theme";
 const visitStorageKey = "student-lounge-visits";
 const visitLogVersionKey = "student-lounge-visits-version";
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+const noticeDuration = 10;
+
+function setupTravelNotice() {
+  const notice = document.querySelector("[data-travel-notice]");
+  const timer = notice?.querySelector("[data-notice-timer]");
+  const closeButton = notice?.querySelector("[data-close-notice]");
+  if (!notice || !timer || !closeButton) return;
+
+  let remaining = noticeDuration;
+  let interval;
+
+  const dismiss = () => {
+    clearInterval(interval);
+    notice.classList.add("is-dismissed");
+  };
+
+  const updateTimer = () => {
+    timer.textContent = `${remaining}s`;
+    if (remaining <= 0) dismiss();
+    remaining -= 1;
+  };
+
+  closeButton.addEventListener("click", dismiss);
+  updateTimer();
+  interval = window.setInterval(updateTimer, 1000);
+}
 
 function recordVisit() {
   const visit = { openedAt: Date.now() };
@@ -30,7 +56,10 @@ if (localStorage.getItem(visitLogVersionKey) !== "2") {
   localStorage.setItem(visitLogVersionKey, "2");
 }
 
-if (window.location.hash.slice(1) !== "admin") recordVisit();
+const initialRoute = window.location.hash.slice(1) || "home";
+let previousRoute = initialRoute;
+
+if (initialRoute !== "admin") recordVisit();
 
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
@@ -43,6 +72,7 @@ function savedTheme() {
 }
 
 applyTheme(savedTheme());
+setupTravelNotice();
 deviceTheme.addEventListener?.("change", () => {
   if (savedTheme() === "auto") applyTheme("auto");
 });
@@ -91,8 +121,8 @@ function formatVisitTime(timestamp) {
 
 function adminPage() {
   const visits = JSON.parse(localStorage.getItem(visitStorageKey) || "[]");
-  const visitRows = visits.length ? visits.map(({ openedAt }) => `<li><span>The Student Lounge opened</span><time datetime="${new Date(openedAt).toISOString()}">${formatVisitTime(openedAt)}</time></li>`).join("") : "<li><span>No visits recorded yet.</span></li>";
-  return `<section class="page-head admin-head"><span class="eyebrow">Private room</span><h1>Activity log.</h1><p>This page is only available by entering <strong>#admin</strong> in the address bar. Times are stored on this browser.</p></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="eyebrow">Recent openings</span><h2>Someone came in.</h2></div><span class="admin-count">${visits.length} recorded</span></div><ol class="visit-list">${visitRows}</ol></section>`;
+  const visitRows = visits.length ? visits.map(({ openedAt }) => `<li><span>A visitor opened the lounge</span><time datetime="${new Date(openedAt).toISOString()}">${formatVisitTime(openedAt)}</time></li>`).join("") : "<li><span>No public lounge openings recorded yet.</span></li>";
+  return `<section class="page-head admin-head"><span class="eyebrow">Private room</span><h1>Activity log.</h1><p>This page is only available by entering <strong>#admin</strong> in the address bar. The log records public lounge openings on this browser, not visits to this admin page.</p></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="eyebrow">Public lounge openings</span><h2>Someone came in.</h2></div><span class="admin-count">${visits.length} recorded</span></div><ol class="visit-list">${visitRows}</ol></section>`;
 }
 
 function wirePageControls(route) {
@@ -146,11 +176,22 @@ function wirePageControls(route) {
 function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
-  app.innerHTML = route === "home" ? homePage() : route === "requests" ? requestsPage() : route === "settings" ? settingsPage() : route === "admin" ? adminPage() : person ? personPage(person) : homePage();
-  document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person ? "people" : route)));
-  wirePageControls(route);
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  const homeSection = route === "people";
+  const pageRoute = homeSection ? "home" : route;
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "admin" ? adminPage() : person ? personPage(person) : homePage();
+  document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || homeSection ? "people" : route)));
+  wirePageControls(pageRoute);
+  if (homeSection) {
+    document.querySelector("#people")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => {
+  const route = window.location.hash.slice(1) || "home";
+  if (previousRoute === "admin" && route !== "admin") recordVisit();
+  previousRoute = route;
+  render();
+});
 render();
