@@ -15,9 +15,308 @@ const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
 const favoritesStorageKey = "student-lounge-favorites";
+const pointsStorageKey = "student-lounge-points";
+const rewardAdStorageKey = "student-lounge-ad-cooldown";
+const dailyPollStorageKey = "student-lounge-daily-poll";
+const unlockedStylesStorageKey = "student-lounge-unlocked-styles";
+const appearanceStorageKey = "student-lounge-appearance";
+const rewardAdVideoId = "QVWpiMdiiw4";
+const rewardAdReward = 50;
+const rewardAdCooldownMs = 3 * 60 * 60 * 1000;
+const dailyPollReward = 20;
+const dailyPolls = [
+  { question: "What helps you reset between classes?", choices: ["A favorite song", "A short walk", "A quick game", "A quiet moment"] },
+  { question: "Pick your ideal short break.", choices: ["Stretch a little", "Listen to music", "Get some fresh air", "Chat with a friend"] },
+  { question: "What should the lounge feel like today?", choices: ["Calm and cozy", "Bright and upbeat", "Quiet and focused", "Playful and fun"] },
+  { question: "Choose a low-key after-school plan.", choices: ["Watch something", "Play a game", "Make something", "Take it easy"] },
+  { question: "Which small win makes your day better?", choices: ["Finishing a task", "Learning something new", "Helping someone", "Taking a good break"] }
+];
+const styleOptions = [
+  { id: "sage", label: "Garden", description: "A calm sage-green accent palette.", kind: "palette", value: "sage", cost: 80 },
+  { id: "sunset", label: "Sunset", description: "Warm coral and golden-hour tones.", kind: "palette", value: "sunset", cost: 80 },
+  { id: "lora", label: "Bookish", description: "Lora headings with a relaxed editorial feel.", kind: "typeface", value: "lora", cost: 120 },
+  { id: "nunito", label: "Roundabout", description: "A friendly, rounded Nunito type style.", kind: "typeface", value: "nunito", cost: 120 }
+];
 const featuredVideos = [];
 const featuredGames = [];
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+function loadPoints() {
+  return Number(localStorage.getItem(pointsStorageKey) || 0);
+}
+
+function savePoints(value) {
+  localStorage.setItem(pointsStorageKey, String(value));
+  const pointsDisplay = document.querySelector("[data-points-total]");
+  if (pointsDisplay) pointsDisplay.textContent = String(value);
+}
+
+function todayKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function todaysPoll() {
+  const [year, month, day] = todayKey().split("-").map(Number);
+  const dayNumber = Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+  return dailyPolls[dayNumber % dailyPolls.length];
+}
+
+function todaysPollRecord() {
+  try {
+    const record = JSON.parse(localStorage.getItem(dailyPollStorageKey) || "null");
+    return record?.date === todayKey() ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+function dailyPollMarkup() {
+  const poll = todaysPoll();
+  const record = todaysPollRecord();
+  const choices = poll.choices.map((choice, index) => {
+    const selected = record?.choice === index;
+    return `<button class="poll-choice ${selected ? "is-selected" : ""}" type="button" data-poll-vote="${index}" ${record ? "disabled" : ""} aria-pressed="${selected}">${choice}</button>`;
+  }).join("");
+  const status = record
+    ? `You earned ${dailyPollReward} points. Your answer is saved on this device.`
+    : `Choose an answer to earn ${dailyPollReward} points. One vote per day.`;
+
+  return `<section class="daily-poll-panel" aria-labelledby="daily-poll-title"><div class="daily-poll-copy"><span class="eyebrow">A little question for today</span><h2 id="daily-poll-title">${poll.question}</h2><p data-poll-status aria-live="polite">${status}</p></div><div class="poll-choices" role="group" aria-label="Poll answers">${choices}</div></section>`;
+}
+
+function mountDailyPoll() {
+  const rewardPanel = app.querySelector(".reward-panel");
+  if (!rewardPanel || app.querySelector(".daily-poll-panel")) return;
+  rewardPanel.insertAdjacentHTML("afterend", dailyPollMarkup());
+}
+
+function handlePollVote(choiceIndex) {
+  if (todaysPollRecord()) return;
+  const poll = todaysPoll();
+  if (!Number.isInteger(choiceIndex) || choiceIndex < 0 || choiceIndex >= poll.choices.length) return;
+
+  localStorage.setItem(dailyPollStorageKey, JSON.stringify({ date: todayKey(), choice: choiceIndex }));
+  savePoints(loadPoints() + dailyPollReward);
+  const panel = app.querySelector(".daily-poll-panel");
+  if (panel) panel.outerHTML = dailyPollMarkup();
+}
+
+function loadUnlockedStyles() {
+  try {
+    const unlocked = JSON.parse(localStorage.getItem(unlockedStylesStorageKey) || "[]");
+    return new Set(Array.isArray(unlocked) ? unlocked : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function loadAppearance() {
+  try {
+    const appearance = JSON.parse(localStorage.getItem(appearanceStorageKey) || "{}");
+    return { palette: appearance.palette || "classic", typeface: appearance.typeface || "classic" };
+  } catch {
+    return { palette: "classic", typeface: "classic" };
+  }
+}
+
+function saveAppearance(appearance) {
+  localStorage.setItem(appearanceStorageKey, JSON.stringify(appearance));
+  applyAppearance();
+}
+
+function applyAppearance() {
+  const appearance = loadAppearance();
+  document.documentElement.dataset.skin = appearance.palette;
+  document.documentElement.dataset.typeface = appearance.typeface;
+}
+
+function customizationMarkup() {
+  const unlocked = loadUnlockedStyles();
+  const appearance = loadAppearance();
+  const points = loadPoints();
+  const options = styleOptions.map((option) => {
+    const isUnlocked = unlocked.has(option.id);
+    const isActive = appearance[option.kind] === option.value;
+    const canAfford = points >= option.cost;
+    const action = isUnlocked ? "use" : "buy";
+    const buttonText = isActive ? "In use" : isUnlocked ? "Use style" : canAfford ? `Unlock · ${option.cost} points` : `Need ${option.cost - points} more`;
+    const disabled = isActive || (!isUnlocked && !canAfford);
+    return `<article class="style-card style-${option.id}"><span class="style-preview" aria-hidden="true">Aa</span><div class="style-card-copy"><h3>${option.label}</h3><p>${option.description}</p></div><button class="button ${isActive ? "secondary" : "primary"}" type="button" data-style-action="${action}" data-style-id="${option.id}" ${disabled ? "disabled" : ""}>${buttonText}</button></article>`;
+  }).join("");
+  return `<section class="customization-section" aria-labelledby="customization-title"><div class="section-heading"><div><span class="eyebrow">Spend your points</span><h2 id="customization-title">Personalize your lounge.</h2></div><p>Unlock a look once, then switch between your styles whenever you like. Choices stay on this device.</p></div><div class="style-grid">${options}</div><p class="customization-note">Style unlocks are local to this browser and do not affect other visitors.</p></section>`;
+}
+
+function mountCustomizations() {
+  if (app.querySelector(".customization-section")) return;
+  const settingsPanel = app.querySelector(".settings-panel");
+  if (settingsPanel) settingsPanel.insertAdjacentHTML("afterend", customizationMarkup());
+}
+
+function handleStyleAction(action, styleId) {
+  const option = styleOptions.find((style) => style.id === styleId);
+  if (!option) return;
+
+  const unlocked = loadUnlockedStyles();
+  if (action === "buy") {
+    if (unlocked.has(option.id) || loadPoints() < option.cost) return;
+    unlocked.add(option.id);
+    localStorage.setItem(unlockedStylesStorageKey, JSON.stringify([...unlocked]));
+    savePoints(loadPoints() - option.cost);
+  } else if (action !== "use" || !unlocked.has(option.id)) {
+    return;
+  }
+
+  const appearance = loadAppearance();
+  appearance[option.kind] = option.value;
+  saveAppearance(appearance);
+  const section = app.querySelector(".customization-section");
+  if (section) section.outerHTML = customizationMarkup();
+}
+
+function getAdCooldownEndsAt() {
+  return Number(localStorage.getItem(rewardAdStorageKey) || 0);
+}
+
+function getRemainingAdCooldown() {
+  const remaining = getAdCooldownEndsAt() - Date.now();
+  return remaining > 0 ? remaining : 0;
+}
+
+function formatCooldown(ms) {
+  const totalSeconds = Math.ceil(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function updateRewardButtonState() {
+  const button = document.querySelector("[data-open-reward]");
+  if (!button) return;
+
+  const remaining = getRemainingAdCooldown();
+  if (remaining > 0) {
+    button.disabled = true;
+    button.textContent = `Next reward in ${formatCooldown(remaining)}`;
+    button.classList.add("is-disabled");
+    return;
+  }
+
+  button.disabled = false;
+  button.textContent = "Watch ad for +50 points";
+  button.classList.remove("is-disabled");
+}
+
+function openRewardAd() {
+  const remaining = getRemainingAdCooldown();
+  if (remaining > 0) {
+    updateRewardButtonState();
+    return;
+  }
+
+  window.__rewardAdAwarded = false;
+
+  const modal = document.querySelector("[data-reward-modal]");
+  const iframe = document.querySelector("[data-reward-iframe]");
+  const closeButton = document.querySelector("[data-close-reward]");
+  if (!modal || !iframe) return;
+
+  iframe.src = `https://www.youtube.com/embed/${rewardAdVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&autoplay=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1`;
+  iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+  iframe.tabIndex = -1;
+  if (closeButton) closeButton.disabled = true;
+  modal.hidden = false;
+  document.body.classList.add("is-ad-lock");
+  const status = document.querySelector("[data-reward-status]");
+  if (status) status.textContent = "Finish the video to claim your reward.";
+}
+
+function finishRewardAd() {
+  if (window.__rewardAdAwarded) return;
+
+  const modal = document.querySelector("[data-reward-modal]");
+  const iframe = document.querySelector("[data-reward-iframe]");
+  const closeButton = document.querySelector("[data-close-reward]");
+  if (!modal || !iframe) return;
+
+  window.__rewardAdAwarded = true;
+  const nextPoints = loadPoints() + rewardAdReward;
+  savePoints(nextPoints);
+  localStorage.setItem(rewardAdStorageKey, String(Date.now() + rewardAdCooldownMs));
+  iframe.src = "";
+  modal.hidden = true;
+  document.body.classList.remove("is-ad-lock");
+  if (closeButton) closeButton.disabled = false;
+  updateRewardButtonState();
+  const status = document.querySelector("[data-reward-status]");
+  if (status) status.textContent = "Reward unlocked!";
+}
+
+function attachRewardListeners() {
+  if (window.__rewardListenersBound) return;
+
+  const trigger = document.querySelector("[data-open-reward]");
+  const closeButton = document.querySelector("[data-close-reward]");
+
+  trigger?.addEventListener("click", openRewardAd);
+  closeButton?.addEventListener("click", () => {
+    const modal = document.querySelector("[data-reward-modal]");
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove("is-ad-lock");
+  });
+
+  window.addEventListener("message", (event) => {
+    const rawData = event.data;
+    if (!rawData) return;
+
+    let payload = rawData;
+
+    if (typeof rawData === "string") {
+      try {
+        payload = JSON.parse(rawData);
+      } catch {
+        return;
+      }
+    }
+
+    if (event.origin && event.origin !== "https://www.youtube.com" && event.origin !== "https://www.youtube-nocookie.com") {
+      return;
+    }
+
+    if (!payload || typeof payload !== "object") return;
+
+    try {
+      if (payload.event === "infoDelivery" && payload.info?.playerState === 0) {
+        finishRewardAd();
+      }
+    } catch {
+      // Ignore non-JSON messages from YouTube.
+    }
+  });
+
+  window.__rewardListenersBound = true;
+}
+
+function attachEconomyListeners() {
+  if (window.__economyListenersBound) return;
+
+  document.addEventListener("click", (event) => {
+    const pollButton = event.target.closest("[data-poll-vote]");
+    if (pollButton && !pollButton.disabled) {
+      handlePollVote(Number(pollButton.dataset.pollVote));
+      return;
+    }
+
+    const styleButton = event.target.closest("[data-style-action]");
+    if (styleButton && !styleButton.disabled) {
+      handleStyleAction(styleButton.dataset.styleAction, styleButton.dataset.styleId);
+    }
+  });
+
+  window.__economyListenersBound = true;
+}
 
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
@@ -30,6 +329,7 @@ function savedTheme() {
 }
 
 applyTheme(savedTheme());
+applyAppearance();
 deviceTheme.addEventListener?.("change", () => {
   if (savedTheme() === "auto") applyTheme("auto");
 });
@@ -47,7 +347,7 @@ function setFavoriteSet(set) {
   localStorage.setItem(favoritesStorageKey, JSON.stringify([...set]));
 }
 
-function favoriteButtonMarkup(kind, id, label, recentlyAdded = false) {
+function favoriteButtonMarkup(kind, id, label) {
   const key = `${kind}:${id}`;
   const favorited = getFavoriteSet().has(key);
   return `<button class="favorite-button ${favorited ? "is-favorited" : ""}" type="button" data-favorite-toggle data-favorite-kind="${kind}" data-favorite-id="${id}" data-favorite-label="${label}" aria-label="${favorited ? "Remove from favorites" : "Add to favorites"}: ${label}" title="${favorited ? "Remove from favorites" : "Add to favorites"}">${favorited ? "♥" : "♡"}</button>`;
@@ -58,11 +358,11 @@ function recentTagMarkup(recentlyAdded) {
 }
 
 function mediaCard(title, id, index, { recentlyAdded = false } = {}) {
-  return `<article class="media-card video-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("video", id, title, recentlyAdded)}</div><div class="media-frame video-frame"><div class="volume-warning" data-video-warning><span class="eyebrow">Volume check</span><p>This video may start louder than expected. Check your volume before continuing.</p><button class="button primary" type="button" data-watch-video data-video-id="${id}">Watch anyway</button></div></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
+  return `<article class="media-card video-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("video", id, title)}</div><div class="media-frame video-frame"><div class="volume-warning" data-video-warning><span class="eyebrow">Volume check</span><p>This video may start louder than expected. Check your volume before continuing.</p><button class="button primary" type="button" data-watch-video data-video-id="${id}">Watch anyway</button></div></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 function gameCard([title, url], index, { recentlyAdded = false } = {}) {
-  return `<article class="media-card game-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("game", url, title, recentlyAdded)}</div><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
+  return `<article class="media-card game-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("game", url, title)}</div><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 document.addEventListener("fullscreenchange", () => {
@@ -78,7 +378,7 @@ function homePage() {
   const videoSpotlights = featuredVideos.length ? featuredVideos.map(({ title, id, recentlyAdded }, index) => mediaCard(title, id, index, { recentlyAdded })).join("") : `<div class="feature-empty"><p>No videos of the week yet. When a video gets added, it will show up here.</p></div>`;
   const gameSpotlights = featuredGames.length ? featuredGames.map(([title, url], index) => gameCard([title, url], index, { recentlyAdded: true })).join("") : `<div class="feature-empty"><p>No games of the week yet. When a game gets added, it will show up here.</p></div>`;
 
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section>`;
+  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch a quick ad, earn 50 points.</h2><p>One full ad every 3 hours. While it plays, the rest of the site stays locked until the video finishes.</p></div><button class="button primary" type="button" data-open-reward>Watch ad for +50 points</button></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
 }
 
 function personPage(person) {
@@ -172,8 +472,16 @@ function render() {
   const homeSection = route === "people";
   const pageRoute = homeSection ? "home" : route;
   app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : person ? personPage(person) : homePage();
+  if (pageRoute === "home") mountDailyPoll();
+  if (pageRoute === "settings") mountCustomizations();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || homeSection ? "people" : route)));
+  const pointsDisplay = document.querySelector("[data-points-total]");
+  if (pointsDisplay) pointsDisplay.textContent = String(loadPoints());
+  updateRewardButtonState();
   wirePageControls(pageRoute);
+  attachRewardListeners();
+  attachEconomyListeners();
+
   if (homeSection) {
     document.querySelector("#people")?.scrollIntoView({ behavior: "smooth", block: "start" });
   } else {
