@@ -14,52 +14,10 @@ const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${encodeURIComponent(window.location.origin)}&rel=0&playsinline=1`;
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
-const visitStorageKey = "student-lounge-visits";
-const visitLogVersionKey = "student-lounge-visits-version";
+const favoritesStorageKey = "student-lounge-favorites";
+const featuredVideos = [];
+const featuredGames = [];
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
-const noticeDuration = 10;
-
-function setupTravelNotice() {
-  const notice = document.querySelector("[data-travel-notice]");
-  const timer = notice?.querySelector("[data-notice-timer]");
-  const closeButton = notice?.querySelector("[data-close-notice]");
-  if (!notice || !timer || !closeButton) return;
-
-  let remaining = noticeDuration;
-  let interval;
-
-  const dismiss = () => {
-    clearInterval(interval);
-    notice.classList.add("is-dismissed");
-  };
-
-  const updateTimer = () => {
-    timer.textContent = `${remaining}s`;
-    if (remaining <= 0) dismiss();
-    remaining -= 1;
-  };
-
-  closeButton.addEventListener("click", dismiss);
-  updateTimer();
-  interval = window.setInterval(updateTimer, 1000);
-}
-
-function recordVisit() {
-  const visit = { openedAt: Date.now() };
-  const visits = JSON.parse(localStorage.getItem(visitStorageKey) || "[]");
-  visits.unshift(visit);
-  localStorage.setItem(visitStorageKey, JSON.stringify(visits.slice(0, 50)));
-}
-
-if (localStorage.getItem(visitLogVersionKey) !== "2") {
-  localStorage.removeItem(visitStorageKey);
-  localStorage.setItem(visitLogVersionKey, "2");
-}
-
-const initialRoute = window.location.hash.slice(1) || "home";
-let previousRoute = initialRoute;
-
-if (initialRoute !== "admin") recordVisit();
 
 function applyTheme(theme) {
   const activeTheme = theme === "auto" ? (deviceTheme.matches ? "dark" : "light") : theme;
@@ -72,17 +30,39 @@ function savedTheme() {
 }
 
 applyTheme(savedTheme());
-setupTravelNotice();
 deviceTheme.addEventListener?.("change", () => {
   if (savedTheme() === "auto") applyTheme("auto");
 });
 
-function mediaCard(title, id, index) {
-  return `<article class="media-card video-card"><div class="media-frame video-frame"><div class="volume-warning" data-video-warning><span class="eyebrow">Volume check</span><p>This video may start louder than expected. Check your volume before continuing.</p><button class="button primary" type="button" data-watch-video data-video-id="${id}">Watch anyway</button></div></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
+function getFavoriteSet() {
+  try {
+    const favorites = JSON.parse(localStorage.getItem(favoritesStorageKey) || "[]");
+    return new Set(Array.isArray(favorites) ? favorites : []);
+  } catch {
+    return new Set();
+  }
 }
 
-function gameCard([title, url], index) {
-  return `<article class="media-card game-card"><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
+function setFavoriteSet(set) {
+  localStorage.setItem(favoritesStorageKey, JSON.stringify([...set]));
+}
+
+function favoriteButtonMarkup(kind, id, label, recentlyAdded = false) {
+  const key = `${kind}:${id}`;
+  const favorited = getFavoriteSet().has(key);
+  return `<button class="favorite-button ${favorited ? "is-favorited" : ""}" type="button" data-favorite-toggle data-favorite-kind="${kind}" data-favorite-id="${id}" data-favorite-label="${label}" aria-label="${favorited ? "Remove from favorites" : "Add to favorites"}: ${label}" title="${favorited ? "Remove from favorites" : "Add to favorites"}">${favorited ? "♥" : "♡"}</button>`;
+}
+
+function recentTagMarkup(recentlyAdded) {
+  return recentlyAdded ? '<span class="card-tag is-recent">Recently added</span>' : "";
+}
+
+function mediaCard(title, id, index, { recentlyAdded = false } = {}) {
+  return `<article class="media-card video-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("video", id, title, recentlyAdded)}</div><div class="media-frame video-frame"><div class="volume-warning" data-video-warning><span class="eyebrow">Volume check</span><p>This video may start louder than expected. Check your volume before continuing.</p><button class="button primary" type="button" data-watch-video data-video-id="${id}">Watch anyway</button></div></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
+}
+
+function gameCard([title, url], index, { recentlyAdded = false } = {}) {
+  return `<article class="media-card game-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("game", url, title, recentlyAdded)}</div><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 document.addEventListener("fullscreenchange", () => {
@@ -95,7 +75,10 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 function homePage() {
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section>`;
+  const videoSpotlights = featuredVideos.length ? featuredVideos.map(({ title, id, recentlyAdded }, index) => mediaCard(title, id, index, { recentlyAdded })).join("") : `<div class="feature-empty"><p>No videos of the week yet. When a video gets added, it will show up here.</p></div>`;
+  const gameSpotlights = featuredGames.length ? featuredGames.map(([title, url], index) => gameCard([title, url], index, { recentlyAdded: true })).join("") : `<div class="feature-empty"><p>No games of the week yet. When a game gets added, it will show up here.</p></div>`;
+
+  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section>`;
 }
 
 function personPage(person) {
@@ -112,19 +95,6 @@ function settingsPage() {
   return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><div class="theme-control"><span>Theme</span><div class="theme-options" role="group" aria-label="Color mode"><button type="button" class="theme-option" data-theme-option="auto"><strong>Device</strong><small>Follow device</small></button><button type="button" class="theme-option" data-theme-option="light"><strong>Light</strong><small>Soft paper</small></button><button type="button" class="theme-option" data-theme-option="dark"><strong>Dark</strong><small>Low light</small></button></div></div></section>`;
 }
 
-function formatVisitTime(timestamp) {
-  const date = new Date(timestamp);
-  const hours = date.getHours() % 12 || 12;
-  const clock = [hours, date.getMinutes(), date.getSeconds()].map((part) => String(part).padStart(2, "0")).join(":");
-  return `${clock}:${String(date.getMilliseconds()).padStart(3, "0")} ${date.getHours() >= 12 ? "PM" : "AM"}`;
-}
-
-function adminPage() {
-  const visits = JSON.parse(localStorage.getItem(visitStorageKey) || "[]");
-  const visitRows = visits.length ? visits.map(({ openedAt }) => `<li><span>A visitor opened the lounge</span><time datetime="${new Date(openedAt).toISOString()}">${formatVisitTime(openedAt)}</time></li>`).join("") : "<li><span>No public lounge openings recorded yet.</span></li>";
-  return `<section class="page-head admin-head"><span class="eyebrow">Private room</span><h1>Activity log.</h1><p>This page is only available by entering <strong>#admin</strong> in the address bar. The log records public lounge openings on this browser, not visits to this admin page.</p></section><section class="admin-panel"><div class="admin-panel-heading"><div><span class="eyebrow">Public lounge openings</span><h2>Someone came in.</h2></div><span class="admin-count">${visits.length} recorded</span></div><ol class="visit-list">${visitRows}</ol></section>`;
-}
-
 function wirePageControls(route) {
   document.querySelectorAll("[data-watch-video]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -137,6 +107,29 @@ function wirePageControls(route) {
       iframe.referrerPolicy = "origin-when-cross-origin";
       iframe.allowFullscreen = true;
       frame.replaceChildren(iframe);
+    });
+  });
+
+  document.querySelectorAll("[data-favorite-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.favoriteKind;
+      const id = button.dataset.favoriteId;
+      const label = button.dataset.favoriteLabel || "favorite";
+      const nextSet = getFavoriteSet();
+      const key = `${kind}:${id}`;
+
+      if (nextSet.has(key)) {
+        nextSet.delete(key);
+      } else {
+        nextSet.add(key);
+      }
+
+      setFavoriteSet(nextSet);
+      const isFavorited = nextSet.has(key);
+      button.classList.toggle("is-favorited", isFavorited);
+      button.textContent = isFavorited ? "♥" : "♡";
+      button.setAttribute("aria-label", `${isFavorited ? "Remove from favorites" : "Add to favorites"}: ${label}`);
+      button.setAttribute("title", isFavorited ? "Remove from favorites" : "Add to favorites");
     });
   });
 
@@ -178,7 +171,7 @@ function render() {
   const person = people.find((entry) => entry.slug === route);
   const homeSection = route === "people";
   const pageRoute = homeSection ? "home" : route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "admin" ? adminPage() : person ? personPage(person) : homePage();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : person ? personPage(person) : homePage();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || homeSection ? "people" : route)));
   wirePageControls(pageRoute);
   if (homeSection) {
@@ -188,10 +181,5 @@ function render() {
   }
 }
 
-window.addEventListener("hashchange", () => {
-  const route = window.location.hash.slice(1) || "home";
-  if (previousRoute === "admin" && route !== "admin") recordVisit();
-  previousRoute = route;
-  render();
-});
+window.addEventListener("hashchange", render);
 render();
