@@ -256,15 +256,20 @@ function finishRewardAd() {
 function attachRewardListeners() {
   if (window.__rewardListenersBound) return;
 
-  const trigger = document.querySelector("[data-open-reward]");
-  const closeButton = document.querySelector("[data-close-reward]");
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-open-reward]");
+    if (trigger && !trigger.disabled) {
+      openRewardAd();
+      return;
+    }
 
-  trigger?.addEventListener("click", openRewardAd);
-  closeButton?.addEventListener("click", () => {
-    const modal = document.querySelector("[data-reward-modal]");
-    if (!modal) return;
-    modal.hidden = true;
-    document.body.classList.remove("is-ad-lock");
+    const closeButton = event.target.closest("[data-close-reward]");
+    if (closeButton && !closeButton.disabled) {
+      const modal = document.querySelector("[data-reward-modal]");
+      if (!modal) return;
+      modal.hidden = true;
+      document.body.classList.remove("is-ad-lock");
+    }
   });
 
   window.addEventListener("message", (event) => {
