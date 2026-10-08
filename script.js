@@ -16,13 +16,12 @@ const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
 const favoritesStorageKey = "student-lounge-favorites";
 const pointsStorageKey = "student-lounge-points";
-const rewardAdStorageKey = "student-lounge-ad-cooldown";
+const rewardAdRotationStorageKey = "student-lounge-ad-rotation";
 const dailyPollStorageKey = "student-lounge-daily-poll";
 const unlockedStylesStorageKey = "student-lounge-unlocked-styles";
 const appearanceStorageKey = "student-lounge-appearance";
-const rewardAdVideoId = "QVWpiMdiiw4";
+const rewardAdVideoIds = ["QVWpiMdiiw4", "KUDhMV0Fpno"];
 const rewardAdReward = 50;
-const rewardAdCooldownMs = 3 * 60 * 60 * 1000;
 let rewardAdCloseTimeout;
 const dailyPollReward = 20;
 const dailyPolls = [
@@ -173,38 +172,20 @@ function handleStyleAction(action, styleId) {
   if (section) section.outerHTML = customizationMarkup();
 }
 
-function getAdCooldownEndsAt() {
-  return Number(localStorage.getItem(rewardAdStorageKey) || 0);
-}
-
-function getRemainingAdCooldown() {
-  const remaining = getAdCooldownEndsAt() - Date.now();
-  return remaining > 0 ? remaining : 0;
-}
-
-function formatCooldown(ms) {
-  const totalSeconds = Math.ceil(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
-}
-
 function updateRewardButtonState() {
   const button = document.querySelector("[data-open-reward]");
   if (!button) return;
 
-  const remaining = getRemainingAdCooldown();
-  if (remaining > 0) {
-    button.disabled = true;
-    button.textContent = `Next reward in ${formatCooldown(remaining)}`;
-    button.classList.add("is-disabled");
-    return;
-  }
-
   button.disabled = false;
-  button.textContent = "Watch ad for +50 points";
+  button.textContent = "Watch an ad for +50 points";
   button.classList.remove("is-disabled");
+}
+
+function nextRewardAdVideoId() {
+  const previousIndex = Number(localStorage.getItem(rewardAdRotationStorageKey) || 0);
+  const nextIndex = Number.isInteger(previousIndex) && previousIndex >= 0 ? previousIndex % rewardAdVideoIds.length : 0;
+  localStorage.setItem(rewardAdRotationStorageKey, String((nextIndex + 1) % rewardAdVideoIds.length));
+  return rewardAdVideoIds[nextIndex];
 }
 
 function closeRewardAd() {
@@ -266,13 +247,9 @@ function ensureRewardPlayer() {
 }
 
 function openRewardAd() {
-  const remaining = getRemainingAdCooldown();
-  if (remaining > 0) {
-    updateRewardButtonState();
-    return;
-  }
-
   window.__rewardAdAwarded = false;
+  const selectedVideoId = nextRewardAdVideoId();
+  window.__activeRewardAdVideoId = selectedVideoId;
   const session = (window.__rewardAdSession || 0) + 1;
   window.__rewardAdSession = session;
 
@@ -284,7 +261,7 @@ function openRewardAd() {
   clearTimeout(rewardAdCloseTimeout);
   iframe.hidden = false;
   if (!window.__rewardPlayer && !window.__rewardPlayerPromise) {
-    iframe.src = `https://www.youtube-nocookie.com/embed/${rewardAdVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&autoplay=0&controls=0&disablekb=1&fs=0&rel=0&playsinline=1`;
+    iframe.src = `https://www.youtube-nocookie.com/embed/${selectedVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&autoplay=0&controls=0&disablekb=1&fs=0&rel=0&playsinline=1`;
   }
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
   if (closeButton) closeButton.disabled = false;
@@ -295,7 +272,7 @@ function openRewardAd() {
 
   ensureRewardPlayer().then((player) => {
     if (window.__rewardAdSession !== session || modal.hidden) return;
-    player.loadVideoById(rewardAdVideoId);
+    player.loadVideoById(selectedVideoId);
   }).catch(() => {
     if (window.__rewardAdSession !== session || modal.hidden) return;
     if (status) status.textContent = "The ad player could not load. Please try again.";
@@ -313,7 +290,6 @@ function finishRewardAd() {
   window.__rewardAdAwarded = true;
   const nextPoints = loadPoints() + rewardAdReward;
   savePoints(nextPoints);
-  localStorage.setItem(rewardAdStorageKey, String(Date.now() + rewardAdCooldownMs));
   iframe.hidden = true;
   if (closeButton) closeButton.disabled = false;
   updateRewardButtonState();
@@ -418,15 +394,8 @@ document.addEventListener("fullscreenchange", () => {
   });
 });
 
-function legacyHomePage() {
-  const videoSpotlights = featuredVideos.length ? featuredVideos.map(({ title, id, recentlyAdded }, index) => mediaCard(title, id, index, { recentlyAdded })).join("") : `<div class="feature-empty"><p>No videos of the week yet. When a video gets added, it will show up here.</p></div>`;
-  const gameSpotlights = featuredGames.length ? featuredGames.map(([title, url], index) => gameCard([title, url], index, { recentlyAdded: true })).join("") : `<div class="feature-empty"><p>No games of the week yet. When a game gets added, it will show up here.</p></div>`;
-
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch a quick ad, earn 50 points.</h2><p>One full ad every 3 hours. While it plays, the rest of the site stays locked until the video finishes.</p></div><button class="button primary" type="button" data-open-reward>Watch ad for +50 points</button></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
-}
-
 function homePage() {
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">Browse people <span>↗</span></a><a class="button secondary" href="#requests">Request an item</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch a quick ad, earn 50 points.</h2><p>One full ad every 3 hours. While it plays, the rest of the site stays locked until the video finishes.</p></div><button class="button primary" type="button" data-open-reward>Watch ad for +50 points</button></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
+  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">Browse people <span>↗</span></a><a class="button secondary" href="#requests">Request an item</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch an ad, earn 50 points.</h2><p>Choose from two ads with the same button. Watch either one as many times as you like; every completed ad earns 50 points.</p></div><button class="button primary" type="button" data-open-reward>Watch an ad for +50 points</button></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
 }
 
 function peopleDirectoryPage() {
