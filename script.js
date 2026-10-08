@@ -412,7 +412,7 @@ function homePage() {
   const videoSpotlights = featuredVideos.length ? featuredVideos.map(({ title, id, recentlyAdded }, index) => mediaCard(title, id, index, { recentlyAdded })).join("") : `<div class="feature-empty"><p>No videos of the week yet. When a video gets added, it will show up here.</p></div>`;
   const gameSpotlights = featuredGames.length ? featuredGames.map(([title, url], index) => gameCard([title, url], index, { recentlyAdded: true })).join("") : `<div class="feature-empty"><p>No games of the week yet. When a game gets added, it will show up here.</p></div>`;
 
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch a quick ad, earn 50 points.</h2><p>One full ad every 3 hours. While it plays, the rest of the site stays locked until the video finishes.</p></div><button class="button primary" type="button" data-open-reward>Watch ad for +50 points</button></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
+  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">See the lounge <span>↗</span></a><a class="button secondary" href="#requests">Make a request</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch a quick ad, earn 50 points.</h2><p>One full ad every 3 hours. While it plays, the rest of the site stays locked until the video finishes.</p></div><button class="button primary" type="button" data-open-reward>Watch ad for +50 points</button></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Videos of the Week</h2></div></div><div class="feature-grid">${videoSpotlights}</div></section><section class="feature-section"><div class="feature-header"><div><span class="eyebrow">Curated picks</span><h2>Games of the Week</h2></div></div><div class="feature-grid">${gameSpotlights}</div></section><section id="people"><div class="section-heading"><div><span class="eyebrow">The room list</span><h2>Pick a person.</h2></div><p>Each corner has its own mood. Find a name and settle in.</p></div><div class="people-grid">${people.map((person, index) => `<a class="person-card" href="#${person.slug}"><span class="person-number">0${index + 1}</span><div><h3>${person.name}</h3><p>${person.note}</p></div><span class="arrow">↗</span></a>`).join("")}</div></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
 }
 
 function personPage(person) {
@@ -430,6 +430,54 @@ function settingsPage() {
 }
 
 function wirePageControls(route) {
+  const heroLogo = document.querySelector(".hero-art img");
+  if (heroLogo) {
+    let dragStart;
+
+    heroLogo.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const container = heroLogo.closest(".hero");
+      if (!container) return;
+
+      const logoBounds = heroLogo.getBoundingClientRect();
+      const containerBounds = container.getBoundingClientRect();
+      const currentX = Number.parseFloat(heroLogo.dataset.dragX || "0");
+      const currentY = Number.parseFloat(heroLogo.dataset.dragY || "0");
+      const dragPadding = 24;
+      dragStart = {
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        offsetX: currentX,
+        offsetY: currentY,
+        minX: containerBounds.left + dragPadding - (logoBounds.left - currentX),
+        maxX: containerBounds.right - dragPadding - (logoBounds.right - currentX),
+        minY: containerBounds.top + dragPadding - (logoBounds.top - currentY),
+        maxY: containerBounds.bottom - dragPadding - (logoBounds.bottom - currentY)
+      };
+      heroLogo.classList.add("is-dragging");
+      heroLogo.setPointerCapture(event.pointerId);
+    });
+
+    heroLogo.addEventListener("pointermove", (event) => {
+      if (!dragStart) return;
+      const x = Math.min(dragStart.maxX, Math.max(dragStart.minX, dragStart.offsetX + event.clientX - dragStart.pointerX));
+      const y = Math.min(dragStart.maxY, Math.max(dragStart.minY, dragStart.offsetY + event.clientY - dragStart.pointerY));
+      heroLogo.dataset.dragX = String(x);
+      heroLogo.dataset.dragY = String(y);
+      heroLogo.style.setProperty("--logo-drag-x", `${x}px`);
+      heroLogo.style.setProperty("--logo-drag-y", `${y}px`);
+    });
+
+    const stopLogoDrag = () => {
+      dragStart = undefined;
+      heroLogo.classList.remove("is-dragging");
+    };
+    heroLogo.addEventListener("pointerup", stopLogoDrag);
+    heroLogo.addEventListener("pointercancel", stopLogoDrag);
+    heroLogo.addEventListener("lostpointercapture", stopLogoDrag);
+  }
+
   document.querySelectorAll("[data-watch-video]").forEach((button) => {
     button.addEventListener("click", () => {
       const frame = button.closest(".media-frame");
