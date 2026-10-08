@@ -215,9 +215,56 @@ function closeRewardAd() {
 
   const modal = document.querySelector("[data-reward-modal]");
   const iframe = document.querySelector("[data-reward-iframe]");
-  if (iframe) iframe.src = "";
+  window.__rewardAdSession = (window.__rewardAdSession || 0) + 1;
+  window.__rewardPlayer?.stopVideo?.();
+  if (iframe) iframe.hidden = true;
   if (modal) modal.hidden = true;
   document.body.classList.remove("is-ad-lock");
+}
+
+function loadRewardYouTubeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (window.__rewardYouTubeApiPromise) return window.__rewardYouTubeApiPromise;
+
+  window.__rewardYouTubeApiPromise = new Promise((resolve, reject) => {
+    const previousCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      previousCallback?.();
+      resolve(window.YT);
+    };
+
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    script.onerror = () => reject(new Error("YouTube player API failed to load."));
+    document.head.append(script);
+  });
+
+  return window.__rewardYouTubeApiPromise;
+}
+
+function ensureRewardPlayer() {
+  if (window.__rewardPlayer) return Promise.resolve(window.__rewardPlayer);
+  if (window.__rewardPlayerPromise) return window.__rewardPlayerPromise;
+
+  window.__rewardPlayerPromise = loadRewardYouTubeApi().then((youtube) => new Promise((resolve) => {
+    const iframe = document.querySelector("[data-reward-iframe]");
+    if (!iframe) throw new Error("Reward video frame not found.");
+
+    window.__rewardPlayer = new youtube.Player(iframe, {
+      events: {
+        onReady: (event) => resolve(event.target),
+        onStateChange: (event) => {
+          if (event.data === youtube.PlayerState.ENDED) finishRewardAd();
+        },
+        onError: () => {
+          const status = document.querySelector("[data-reward-status]");
+          if (status) status.textContent = "The ad could not be played. Please try again.";
+        }
+      }
+    });
+  }));
+
+  return window.__rewardPlayerPromise;
 }
 
 function openRewardAd() {
@@ -228,7 +275,8 @@ function openRewardAd() {
   }
 
   window.__rewardAdAwarded = false;
-  window.__rewardAdStarted = false;
+  const session = (window.__rewardAdSession || 0) + 1;
+  window.__rewardAdSession = session;
 
   const modal = document.querySelector("[data-reward-modal]");
   const iframe = document.querySelector("[data-reward-iframe]");
@@ -237,14 +285,23 @@ function openRewardAd() {
 
   clearTimeout(rewardAdCloseTimeout);
   iframe.hidden = false;
-  iframe.src = `https://www.youtube-nocookie.com/embed/${rewardAdVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&autoplay=1&controls=0&disablekb=1&fs=0&rel=0&playsinline=1`;
+  if (!window.__rewardPlayer && !window.__rewardPlayerPromise) {
+    iframe.src = `https://www.youtube-nocookie.com/embed/${rewardAdVideoId}?enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&autoplay=0&controls=0&disablekb=1&fs=0&rel=0&playsinline=1`;
+  }
   iframe.allow = "autoplay; encrypted-media; picture-in-picture";
-  iframe.tabIndex = -1;
   if (closeButton) closeButton.disabled = false;
   modal.hidden = false;
   document.body.classList.add("is-ad-lock");
   const status = document.querySelector("[data-reward-status]");
   if (status) status.textContent = "Finish the video to claim your reward.";
+
+  ensureRewardPlayer().then((player) => {
+    if (window.__rewardAdSession !== session || modal.hidden) return;
+    player.loadVideoById(rewardAdVideoId);
+  }).catch(() => {
+    if (window.__rewardAdSession !== session || modal.hidden) return;
+    if (status) status.textContent = "The ad player could not load. Please try again.";
+  });
 }
 
 function finishRewardAd() {
@@ -259,7 +316,6 @@ function finishRewardAd() {
   const nextPoints = loadPoints() + rewardAdReward;
   savePoints(nextPoints);
   localStorage.setItem(rewardAdStorageKey, String(Date.now() + rewardAdCooldownMs));
-  iframe.src = "";
   iframe.hidden = true;
   if (closeButton) closeButton.disabled = false;
   updateRewardButtonState();
@@ -273,15 +329,6 @@ function finishRewardAd() {
 function attachRewardListeners() {
   if (window.__rewardListenersBound) return;
 
-  const iframe = document.querySelector("[data-reward-iframe]");
-  iframe?.addEventListener("load", () => {
-    iframe.contentWindow?.postMessage(JSON.stringify({
-      event: "command",
-      func: "addEventListener",
-      args: ["onStateChange"]
-    }), "https://www.youtube-nocookie.com");
-  });
-
   document.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-open-reward]");
     if (trigger && !trigger.disabled) {
@@ -292,41 +339,6 @@ function attachRewardListeners() {
     const closeButton = event.target.closest("[data-close-reward]");
     if (closeButton && !closeButton.disabled) {
       closeRewardAd();
-    }
-  });
-
-  window.addEventListener("message", (event) => {
-    const rawData = event.data;
-    if (!rawData) return;
-
-    let payload = rawData;
-
-    if (typeof rawData === "string") {
-      try {
-        payload = JSON.parse(rawData);
-      } catch {
-        return;
-      }
-    }
-
-    if (event.origin && event.origin !== "https://www.youtube.com" && event.origin !== "https://www.youtube-nocookie.com") {
-      return;
-    }
-
-    if (!payload || typeof payload !== "object") return;
-
-    try {
-      const playerState = payload.event === "infoDelivery"
-        ? payload.info?.playerState
-        : payload.event === "onStateChange"
-          ? payload.info
-          : undefined;
-      if (playerState === 1) window.__rewardAdStarted = true;
-      if (playerState === 0 && window.__rewardAdStarted) {
-        finishRewardAd();
-      }
-    } catch {
-      // Ignore non-JSON messages from YouTube.
     }
   });
 

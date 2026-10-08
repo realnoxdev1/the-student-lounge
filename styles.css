@@ -356,6 +356,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
 .hero-art img { position: relative; z-index: 2; width: min(330px, 77%); border: 7px solid rgba(255,255,255,.94); border-radius: 27px; box-shadow: 0 28px 70px rgba(0,0,0,.35); cursor: grab; touch-action: none; user-select: none; -webkit-user-drag: none; transform: translate(var(--logo-drag-x, 0px), var(--logo-drag-y, 0px)) rotate(2.5deg); transition: transform .62s cubic-bezier(.22, 1.4, .36, 1); }
 .hero-art:hover img:not(.is-dragging) { transform: translate(var(--logo-drag-x, 0px), var(--logo-drag-y, 0px)) rotate(0) translateY(-5px); }
 .hero-art img.is-dragging { z-index: 40; cursor: grabbing; transition: none; }
+.hero-art .sticker { display: none; }
 .sticker { top: 14%; right: -1%; padding: 10px 14px; border: 1px solid rgba(255,255,255,.55); border-radius: 12px; color: #242d4d; background: #dff5e9; box-shadow: 0 10px 24px rgba(0,0,0,.16); font-size: .65rem; letter-spacing: .02em; transform: rotate(5deg); }
 .sticker::before { color: #537c68; }
 
