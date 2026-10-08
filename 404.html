@@ -3,21 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080a0f" />
+    <meta name="theme-color" content="#11182b" />
     <title>404 | The Student Lounge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <style>
-      :root { color-scheme: dark; font-family: "DM Sans", system-ui, sans-serif; background: #080a0f; color: #f7f8fb; }
+      :root { color-scheme: dark; font-family: "DM Sans", system-ui, sans-serif; background: #11182b; color: #f7f8fb; }
       * { box-sizing: border-box; }
-      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: #080a0f; }
-      main { width: min(100%, 760px); text-align: center; }
-      img { display: block; width: min(100%, 620px); margin: 0 auto 24px; border-radius: 18px; box-shadow: 0 24px 70px rgba(0, 0, 0, .4); }
-      a { display: inline-flex; align-items: center; justify-content: center; padding: 13px 18px; border-radius: 999px; color: #080a0f; background: #f7f8fb; font-size: .9rem; font-weight: 700; text-decoration: none; }
-      a:hover { background: #1683ff; color: white; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 30%, #263664, transparent 47rem), #11182b; }
+      main { width: min(100%, 790px); padding: clamp(22px, 5vw, 48px); border: 1px solid rgba(255,255,255,.12); border-radius: 30px; background: rgba(255,255,255,.055); text-align: center; box-shadow: 0 30px 90px rgba(0,0,0,.22); backdrop-filter: blur(16px); }
+      img { display: block; width: min(100%, 570px); margin: 0 auto 20px; border: 1px solid rgba(255,255,255,.12); border-radius: 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, .32); }
+      p { margin: 0 0 21px; color: rgba(247,248,251,.67); font-size: .9rem; }
+      a { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 19px; border: 1px solid rgba(255,255,255,.16); border-radius: 13px; color: white; background: #526ff4; box-shadow: 0 9px 22px rgba(72,104,245,.22); font-size: .82rem; font-weight: 700; text-decoration: none; transition: transform .2s ease, background .2s ease; }
+      a:hover { transform: translateY(-2px); background: #3e5de4; }
+      a:focus-visible { outline: 3px solid #b8c3ff; outline-offset: 3px; }
+      @media (max-width: 480px) { main { padding: 18px; border-radius: 22px; } img { border-radius: 16px; } }
     </style>
   </head>
   <body>
     <main>
       <img src="404-image.png" alt="The Student Lounge 404 page not found artwork" />
+      <p>Looks like this corner of the lounge is empty.</p>
       <a href="./">Back to The Student Lounge</a>
     </main>
   </body>
