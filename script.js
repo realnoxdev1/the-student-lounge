@@ -437,32 +437,23 @@ function wirePageControls(route) {
     heroLogo.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
       event.preventDefault();
-      const container = heroLogo.closest(".hero");
-      if (!container) return;
-
-      const logoBounds = heroLogo.getBoundingClientRect();
-      const containerBounds = container.getBoundingClientRect();
       const currentX = Number.parseFloat(heroLogo.dataset.dragX || "0");
       const currentY = Number.parseFloat(heroLogo.dataset.dragY || "0");
-      const dragPadding = 24;
       dragStart = {
         pointerX: event.clientX,
         pointerY: event.clientY,
         offsetX: currentX,
-        offsetY: currentY,
-        minX: containerBounds.left + dragPadding - (logoBounds.left - currentX),
-        maxX: containerBounds.right - dragPadding - (logoBounds.right - currentX),
-        minY: containerBounds.top + dragPadding - (logoBounds.top - currentY),
-        maxY: containerBounds.bottom - dragPadding - (logoBounds.bottom - currentY)
+        offsetY: currentY
       };
+      heroLogo.closest(".hero")?.classList.add("is-logo-dragging");
       heroLogo.classList.add("is-dragging");
       heroLogo.setPointerCapture(event.pointerId);
     });
 
     heroLogo.addEventListener("pointermove", (event) => {
       if (!dragStart) return;
-      const x = Math.min(dragStart.maxX, Math.max(dragStart.minX, dragStart.offsetX + event.clientX - dragStart.pointerX));
-      const y = Math.min(dragStart.maxY, Math.max(dragStart.minY, dragStart.offsetY + event.clientY - dragStart.pointerY));
+      const x = dragStart.offsetX + event.clientX - dragStart.pointerX;
+      const y = dragStart.offsetY + event.clientY - dragStart.pointerY;
       heroLogo.dataset.dragX = String(x);
       heroLogo.dataset.dragY = String(y);
       heroLogo.style.setProperty("--logo-drag-x", `${x}px`);
@@ -470,9 +461,19 @@ function wirePageControls(route) {
     });
 
     const stopLogoDrag = () => {
+      if (!dragStart) return;
       dragStart = undefined;
+      delete heroLogo.dataset.dragX;
+      delete heroLogo.dataset.dragY;
+      heroLogo.style.setProperty("--logo-drag-x", "0px");
+      heroLogo.style.setProperty("--logo-drag-y", "0px");
       heroLogo.classList.remove("is-dragging");
     };
+    heroLogo.addEventListener("transitionend", (event) => {
+      if (event.propertyName === "transform" && !dragStart) {
+        heroLogo.closest(".hero")?.classList.remove("is-logo-dragging");
+      }
+    });
     heroLogo.addEventListener("pointerup", stopLogoDrag);
     heroLogo.addEventListener("pointercancel", stopLogoDrag);
     heroLogo.addEventListener("lostpointercapture", stopLogoDrag);
