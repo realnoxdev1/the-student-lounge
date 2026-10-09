@@ -409,6 +409,10 @@ function personPage(person) {
   return `<section class="page-head"><span class="eyebrow">A corner for</span><h1>${person.name}</h1><p>${person.note}. Take your time, turn the volume down, and make yourself comfortable.</p></section>${person.media?.length ? `<section><div class="section-heading"><h2>Watch list</h2><p>Hand-picked for this corner of the lounge.</p></div><div class="media-grid">${media}</div></section>` : ""}${person.games?.length ? `<section><div class="section-heading"><h2>Play room</h2><p>Open a game right here and keep your place in the lounge.</p></div><div class="media-grid">${games}</div></section>` : ""}`;
 }
 
+function hanyPage() {
+  return `<section class="page-head"><span class="eyebrow">A little appreciation</span><h1>Hany is my dad.</h1><p>He loves me, supports me, and is always there when I need him. He makes life brighter with his kindness, advice, and sense of humor.</p></section><section class="request-note"><h2>Thanks for being you, Dad.</h2><p>I’m lucky to have you in my corner. Love you!</p><a class="button primary" href="#home">Back to the lounge <span aria-hidden="true">↗</span></a></section>`;
+}
+
 function requestsPage() {
   return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request an item.</h1><p>Have a video, song, or game in mind? Send your suggestion and help make the lounge yours.</p></section><section class="request-layout"><div class="request-note"><h2>Leave a little something for the room.</h2><p>Use the form to request a video, song, or game. It opens in the panel beside this note, so you never have to leave the lounge.</p><a class="button" href="https://forms.gle/fc5mWuPjdMgMvXL58" target="_blank" rel="noreferrer">Open form in new tab ↗</a></div><div class="form-card"><iframe src="https://forms.gle/fc5mWuPjdMgMvXL58" title="Request an item">Loading…</iframe></div></section>`;
 }
@@ -541,7 +545,7 @@ function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
   const pageRoute = route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : person ? personPage(person) : homePage();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
   if (pageRoute === "home") mountDailyPoll();
   if (pageRoute === "settings") mountCustomizations();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || pageRoute === "people" ? "people" : route)));
