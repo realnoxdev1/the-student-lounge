@@ -239,15 +239,23 @@ h1 em { color: var(--blue); font-style: normal; }
 .updates-close:hover { border-color: var(--blue); color: var(--blue); }
 .updates-dialog > h2 { margin: 16px 0 7px; font-family: var(--font-display); font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 600; letter-spacing: -.065em; line-height: .98; }
 .updates-intro { margin: 0 0 21px; color: var(--muted); font-size: .9rem; line-height: 1.55; }
-.updates-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.update-card { padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
-.update-card-wide { grid-column: 1 / -1; }
+.updates-list { display: grid; grid-template-columns: 1fr; gap: 10px; counter-reset: update-step; }
+.update-card { position: relative; padding: 17px 18px 17px 58px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); counter-increment: update-step; }
+.update-card::before { content: counter(update-step, decimal-leading-zero); position: absolute; top: 17px; left: 17px; color: var(--blue); font-size: .68rem; font-weight: 800; letter-spacing: .08em; }
 .update-person { color: var(--blue); font-size: .63rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .update-card h3 { margin: 6px 0; font-family: var(--font-display); font-size: 1.12rem; font-weight: 700; letter-spacing: -.025em; }
 .update-card p, .updates-community-note p { margin: 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }
 .updates-community-note { margin-top: 12px; padding: 17px; border-radius: 16px; color: var(--ink); background: var(--blue-soft); }
 .updates-community-note strong { display: block; margin-bottom: 5px; font-size: .86rem; }
 .updates-community-note p { color: var(--ink); }
+.account-nudge { margin-top: 12px; padding: 19px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.account-nudge h3 { margin: 6px 0; font-family: var(--font-display); font-size: 1.25rem; letter-spacing: -.035em; }
+.account-nudge > p:not(.account-message) { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.55; }
+.account-nudge-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.account-nudge-actions .button { font-size: .76rem; }
+.google-sign-in { justify-self: start; gap: 9px; border-color: var(--line); background: var(--card); color: var(--ink); }
+.google-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #4285f4; background: white; font: 800 .85rem Arial, sans-serif; }
+.account-nudge .account-message { padding: 0; }
 .updates-done { margin-top: 16px; }
 body.is-ad-lock { overflow: hidden; }
 body.is-ad-lock * { pointer-events: none; }
@@ -576,9 +584,11 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
   .updates-modal { align-items: end; padding: 8px; }
   .updates-dialog { max-height: 92dvh; padding: 21px 17px; border-radius: 22px 22px 14px 14px; }
   .updates-list { grid-template-columns: 1fr; gap: 8px; }
-  .update-card-wide { grid-column: auto; }
-  .update-card { padding: 14px; }
+  .update-card { padding: 14px 14px 14px 48px; }
+  .update-card::before { top: 14px; left: 13px; }
   .updates-done { width: 100%; }
+  .account-nudge-actions { display: grid; grid-template-columns: 1fr; }
+  .account-nudge-actions .button { width: 100%; }
   .site-footer span:nth-child(2) { text-align: left; }
 }
 

@@ -514,7 +514,7 @@ function settingsPage() {
 }
 
 function accountPage() {
-  return `<section class="page-head"><span class="eyebrow">Your lounge account</span><h1>Keep your place.</h1><p>Create an account or sign in. Your Pro status will be stored with your account, so it follows you when you sign in on another device.</p></section><section class="account-panel" aria-label="Account management"><div data-account-guest><form class="request-form" data-account-sign-in><h2>Welcome back.</h2><label for="account-signin-email">Email</label><input id="account-signin-email" name="email" type="email" autocomplete="username" required /><label for="account-signin-password">Password</label><input id="account-signin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button><p class="account-switch">New here? <button type="button" data-account-show-sign-up>Create an account</button></p></form><form class="request-form" data-account-sign-up hidden><h2>Make your account.</h2><label for="account-display-name">Your name</label><input id="account-display-name" name="displayName" type="text" autocomplete="name" maxlength="80" required /><label for="account-signup-email">Email</label><input id="account-signup-email" name="email" type="email" autocomplete="email" required /><label for="account-signup-password">Create a password</label><input id="account-signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required /><button class="button primary" type="submit">Create account</button><p class="account-switch">Already have an account? <button type="button" data-account-show-sign-in>Sign in</button></p></form></div><div data-account-member hidden><div class="account-identity"><div><span class="eyebrow">Signed in as</span><h2 data-account-name>Your account</h2><p class="account-email" data-account-email></p></div><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div><div class="pro-status-card" data-pro-status-card><span class="pro-badge" data-pro-badge>Checking Pro</span><p data-pro-status>Checking your membership…</p></div></div><p class="account-message" data-account-message aria-live="polite">${supabaseClient ? "" : "Account sign-in isn't connected yet. Please try again later."}</p></section>`;
+  return `<section class="page-head"><span class="eyebrow">Your lounge account</span><h1>Keep your place.</h1><p>Create an account or sign in. Your Pro status will be stored with your account, so it follows you when you sign in on another device.</p></section><section class="account-panel" aria-label="Account management"><div data-account-guest><form class="request-form" data-account-sign-in><h2>Welcome back.</h2><label for="account-signin-email">Email</label><input id="account-signin-email" name="email" type="email" autocomplete="username" required /><label for="account-signin-password">Password</label><input id="account-signin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button><button class="button secondary google-sign-in" type="button" data-google-sign-in><span class="google-mark" aria-hidden="true">G</span> Continue with Google</button><p class="account-switch">New here? <button type="button" data-account-show-sign-up>Create an account</button></p></form><form class="request-form" data-account-sign-up hidden><h2>Make your account.</h2><label for="account-display-name">Your name</label><input id="account-display-name" name="displayName" type="text" autocomplete="name" maxlength="80" required /><label for="account-signup-email">Email</label><input id="account-signup-email" name="email" type="email" autocomplete="email" required /><label for="account-signup-password">Create a password</label><input id="account-signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required /><button class="button primary" type="submit">Create account</button><button class="button secondary google-sign-in" type="button" data-google-sign-in><span class="google-mark" aria-hidden="true">G</span> Sign up with Google</button><p class="account-switch">Already have an account? <button type="button" data-account-show-sign-in>Sign in</button></p></form></div><div data-account-member hidden><div class="account-identity"><div><span class="eyebrow">Signed in as</span><h2 data-account-name>Your account</h2><p class="account-email" data-account-email></p></div><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div><div class="pro-status-card" data-pro-status-card><span class="pro-badge" data-pro-badge>Checking Pro</span><p data-pro-status>Checking your membership…</p></div></div><p class="account-message" data-account-message aria-live="polite">${supabaseClient ? "" : "Account sign-in isn't connected yet. Please try again later."}</p></section>`;
 }
 
 async function refreshAccountPage() {
@@ -569,6 +569,29 @@ async function refreshAccountPage() {
   }
 }
 
+async function startGoogleSignIn(statusElement) {
+  if (!supabaseClient) {
+    if (statusElement) statusElement.textContent = "Google sign-in isn't connected. Check the Supabase settings and refresh.";
+    return;
+  }
+  if (statusElement) statusElement.textContent = "Opening Google sign-in…";
+
+  try {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}#account` }
+    });
+    if (error) throw error;
+  } catch (error) {
+    console.error("Google sign-in failed.", error);
+    if (statusElement) {
+      statusElement.textContent = error.message?.toLowerCase().includes("provider")
+        ? "Google sign-in is not enabled yet. Set up the Google provider in Supabase Authentication."
+        : "Could not start Google sign-in. Check its Supabase provider and redirect URL settings.";
+    }
+  }
+}
+
 function wireAccountControls() {
   const signInForm = app.querySelector("[data-account-sign-in]");
   const signUpForm = app.querySelector("[data-account-sign-up]");
@@ -584,6 +607,9 @@ function wireAccountControls() {
     signUpForm.hidden = true;
     signInForm.hidden = false;
     message.textContent = "";
+  });
+  app.querySelectorAll("[data-google-sign-in]").forEach((button) => {
+    button.addEventListener("click", () => startGoogleSignIn(message));
   });
 
   signInForm.addEventListener("submit", async (event) => {
@@ -876,10 +902,21 @@ function render() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function showRecentUpdates() {
+async function showRecentUpdates() {
   const modal = document.querySelector("[data-updates-modal]");
   const dialog = modal?.querySelector('[role="dialog"]');
   if (!modal || !dialog) return;
+
+  const accountPrompt = modal.querySelector("[data-account-prompt]");
+  if (accountPrompt) {
+    try {
+      const { data } = supabaseClient ? await supabaseClient.auth.getSession() : { data: { session: null } };
+      accountPrompt.hidden = Boolean(data.session);
+    } catch (error) {
+      console.warn("Unable to check sign-in status for the welcome prompt.", error);
+      accountPrompt.hidden = false;
+    }
+  }
 
   const closeButtons = modal.querySelectorAll("[data-close-updates]");
   const previousOverflow = document.body.style.overflow;
@@ -918,6 +955,19 @@ function showRecentUpdates() {
   modal.hidden = false;
   document.addEventListener("keydown", handleModalKeydown);
   closeButtons[0]?.focus();
+
+  accountPrompt?.querySelector("[data-prompt-sign-up]")?.addEventListener("click", () => {
+    closeModal();
+    window.location.hash = "account";
+    window.setTimeout(() => app.querySelector("[data-account-show-sign-up]")?.click(), 0);
+  });
+  accountPrompt?.querySelector("[data-prompt-sign-in]")?.addEventListener("click", () => {
+    closeModal();
+    window.location.hash = "account";
+  });
+  accountPrompt?.querySelector("[data-google-sign-in]")?.addEventListener("click", () => {
+    startGoogleSignIn(accountPrompt.querySelector("[data-google-status]"));
+  });
 }
 
 window.addEventListener("hashchange", render);
