@@ -45,7 +45,9 @@ const styleOptions = [
   { id: "sage", label: "Garden", description: "A calm sage-green accent palette.", kind: "palette", value: "sage", cost: 80 },
   { id: "sunset", label: "Sunset", description: "Warm coral and golden-hour tones.", kind: "palette", value: "sunset", cost: 80 },
   { id: "lora", label: "Bookish", description: "Lora headings with a relaxed editorial feel.", kind: "typeface", value: "lora", cost: 120 },
-  { id: "nunito", label: "Roundabout", description: "A friendly, rounded Nunito type style.", kind: "typeface", value: "nunito", cost: 120 }
+  { id: "nunito", label: "Roundabout", description: "A friendly, rounded Nunito type style.", kind: "typeface", value: "nunito", cost: 120 },
+  { id: "aurora", label: "Aurora", description: "Cool teal and violet tones inspired by northern lights.", kind: "palette", value: "aurora", proOnly: true },
+  { id: "starlight", label: "Starlight", description: "A deep, polished indigo palette with a warm gold accent.", kind: "palette", value: "starlight", proOnly: true }
 ];
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
 
@@ -166,34 +168,75 @@ function applyAppearance() {
   document.documentElement.dataset.typeface = appearance.typeface;
 }
 
-function customizationMarkup() {
+function customizationMarkup(isPro = false) {
   const unlocked = loadUnlockedStyles();
   const appearance = loadAppearance();
   const points = loadPoints();
-  const options = styleOptions.map((option) => {
+  const options = styleOptions.filter((option) => !option.proOnly || isPro).map((option) => {
     const isUnlocked = unlocked.has(option.id);
     const isActive = appearance[option.kind] === option.value;
     const canAfford = points >= option.cost;
-    const action = isUnlocked ? "use" : "buy";
-    const buttonText = isActive ? "In use" : isUnlocked ? "Use style" : canAfford ? `Unlock · ${option.cost} points` : `Need ${option.cost - points} more`;
-    const disabled = isActive || (!isUnlocked && !canAfford);
+    const action = option.proOnly || isUnlocked ? "use" : "buy";
+    const buttonText = isActive ? "In use" : option.proOnly || isUnlocked ? "Use style" : canAfford ? `Unlock · ${option.cost} points` : `Need ${option.cost - points} more`;
+    const disabled = isActive || (!option.proOnly && !isUnlocked && !canAfford);
     return `<article class="style-card style-${option.id}"><span class="style-preview" aria-hidden="true">Aa</span><div class="style-card-copy"><h3>${option.label}</h3><p>${option.description}</p></div><button class="button ${isActive ? "secondary" : "primary"}" type="button" data-style-action="${action}" data-style-id="${option.id}" ${disabled ? "disabled" : ""}>${buttonText}</button></article>`;
   }).join("");
-  return `<section class="customization-section" aria-labelledby="customization-title"><div class="section-heading"><div><span class="eyebrow">Spend your points</span><h2 id="customization-title">Personalize your lounge.</h2></div><p>Unlock a look once, then switch between your styles whenever you like. Choices stay on this device.</p></div><div class="style-grid">${options}</div><p class="customization-note">Style unlocks are local to this browser and do not affect other visitors.</p></section>`;
+  const proSection = isPro
+    ? `<section class="pro-theme-section is-pro-unlocked" data-pro-theme-section aria-labelledby="pro-theme-title"><div class="pro-theme-heading"><span class="pro-badge">Lounge Pro</span><h3 id="pro-theme-title">Exclusive palettes</h3></div><div class="pro-theme-grid">${optionsForProThemes(appearance)}</div></section>`
+    : `<section class="pro-theme-section" data-pro-theme-section aria-labelledby="pro-theme-title"><div class="pro-theme-heading"><span class="pro-badge">Lounge Pro</span><h3 id="pro-theme-title">Exclusive palettes</h3></div><p class="pro-theme-note">Sign in with an active Pro account to see and use these extra looks.</p><a class="button secondary" href="#account">Check your Pro membership</a></section>`;
+  return `<section class="customization-section" aria-labelledby="customization-title"><div class="section-heading"><div><span class="eyebrow">Spend your points</span><h2 id="customization-title">Personalize your lounge.</h2></div><p>Unlock a look once, then switch between your styles whenever you like. Choices stay on this device.</p></div><div class="style-grid">${options}</div>${proSection}<p class="customization-note">Point-unlocked styles are saved on this browser. Pro palettes require an active account membership.</p></section>`;
+}
+
+function optionsForProThemes(appearance = loadAppearance()) {
+  return styleOptions.filter((option) => option.proOnly).map((option) => {
+    const isActive = appearance[option.kind] === option.value;
+    return `<article class="style-card style-${option.id}"><span class="style-preview" aria-hidden="true">Aa</span><div class="style-card-copy"><h4>${option.label}</h4><p>${option.description}</p></div><button class="button ${isActive ? "secondary" : "primary"}" type="button" data-style-action="use" data-style-id="${option.id}" ${isActive ? "disabled" : ""}>${isActive ? "In use" : "Use style"}</button></article>`;
+  }).join("");
+}
+
+async function checkActiveProMembership() {
+  if (!supabaseClient) return false;
+  try {
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    const user = sessionData?.session?.user;
+    if (sessionError || !user) return false;
+
+    const { data: entitlement, error } = await supabaseClient
+      .from("pro_entitlements")
+      .select("expires_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error || !entitlement) return false;
+    return !entitlement.expires_at || new Date(entitlement.expires_at) > new Date();
+  } catch (error) {
+    console.warn("Unable to verify Pro theme access.", error);
+    return false;
+  }
 }
 
 function mountCustomizations() {
   if (app.querySelector(".customization-section")) return;
   const settingsPanel = app.querySelector(".settings-panel");
-  if (settingsPanel) settingsPanel.insertAdjacentHTML("afterend", customizationMarkup());
+  if (!settingsPanel) return;
+  settingsPanel.insertAdjacentHTML("afterend", customizationMarkup());
+
+  checkActiveProMembership().then((hasPro) => {
+    const section = app.querySelector(".customization-section");
+    if (!hasPro || !section || window.location.hash !== "#settings") return;
+    section.outerHTML = customizationMarkup(true);
+  });
 }
 
-function handleStyleAction(action, styleId) {
+async function handleStyleAction(action, styleId) {
   const option = styleOptions.find((style) => style.id === styleId);
   if (!option) return;
 
+  if (option.proOnly && (action !== "use" || !await checkActiveProMembership())) return;
+
   const unlocked = loadUnlockedStyles();
-  if (action === "buy") {
+  if (option.proOnly) {
+    // Pro palettes are account-entitled and do not cost points.
+  } else if (action === "buy") {
     if (unlocked.has(option.id) || loadPoints() < option.cost) return;
     unlocked.add(option.id);
     localStorage.setItem(unlockedStylesStorageKey, JSON.stringify([...unlocked]));
@@ -206,7 +249,7 @@ function handleStyleAction(action, styleId) {
   appearance[option.kind] = option.value;
   saveAppearance(appearance);
   const section = app.querySelector(".customization-section");
-  if (section) section.outerHTML = customizationMarkup();
+  if (section) section.outerHTML = customizationMarkup(await checkActiveProMembership());
 }
 
 function updateRewardButtonState() {
