@@ -176,6 +176,7 @@ h1 em { color: var(--blue); font-style: normal; }
 .admin-login-form { max-width: 520px; margin: auto; }
 .admin-status { padding: 12px 20px; }
 .admin-sign-out { margin: 18px 18px 0; }
+.admin-retry { margin: 0 20px 20px; }
 .settings-panel { display: flex; justify-content: space-between; gap: 30px; align-items: center; margin: 10px 0 110px; padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); box-shadow: var(--shadow); }
 .settings-panel h2 { margin: 8px 0 5px; font-family: var(--font-display); font-size: 2.2rem; font-weight: 500; letter-spacing: -.05em; }
 .settings-panel p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.55; }
@@ -215,6 +216,25 @@ h1 em { color: var(--blue); font-style: normal; }
 .reward-ad-dialog iframe[hidden] { display: none; }
 .reward-ad-dialog iframe { pointer-events: none; }
 .reward-ad-status { margin: 14px 0 0; color: var(--muted); font-size: .8rem; }
+.updates-modal { position: fixed; inset: 0; z-index: 60; display: none; place-items: center; padding: 20px; background: rgba(17, 19, 21, .72); backdrop-filter: blur(10px); }
+.updates-modal:not([hidden]) { display: grid; }
+.updates-modal[hidden] { display: none !important; }
+.updates-dialog { width: min(760px, 100%); max-height: min(90vh, 900px); overflow-y: auto; padding: clamp(21px, 4vw, 34px); border: 1px solid var(--line); border-radius: 26px; color: var(--ink); background: var(--card); box-shadow: var(--shadow); }
+.updates-dialog-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.updates-close { display: grid; place-items: center; flex: 0 0 auto; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: var(--paper); font: inherit; cursor: pointer; }
+.updates-close:hover { border-color: var(--blue); color: var(--blue); }
+.updates-dialog > h2 { margin: 16px 0 7px; font-family: var(--font-display); font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 600; letter-spacing: -.065em; line-height: .98; }
+.updates-intro { margin: 0 0 21px; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.updates-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.update-card { padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.update-card-wide { grid-column: 1 / -1; }
+.update-person { color: var(--blue); font-size: .63rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.update-card h3 { margin: 6px 0; font-family: var(--font-display); font-size: 1.12rem; font-weight: 700; letter-spacing: -.025em; }
+.update-card p, .updates-community-note p { margin: 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }
+.updates-community-note { margin-top: 12px; padding: 17px; border-radius: 16px; color: var(--ink); background: var(--blue-soft); }
+.updates-community-note strong { display: block; margin-bottom: 5px; font-size: .86rem; }
+.updates-community-note p { color: var(--ink); }
+.updates-done { margin-top: 16px; }
 body.is-ad-lock { overflow: hidden; }
 body.is-ad-lock * { pointer-events: none; }
 body.is-ad-lock .reward-ad-modal { pointer-events: auto; }
@@ -472,6 +492,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
 
 .reward-ad-dialog { border-color: var(--line); border-radius: 24px; }
 .reward-ad-status { font-size: .82rem; }
+.updates-dialog { border-radius: 24px; }
 
 @media (max-width: 900px) {
   .site-header { grid-template-columns: 1fr auto; }
@@ -538,6 +559,12 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
   .style-card { grid-template-columns: 42px minmax(0, 1fr); gap: 11px; }
   .style-card .button { grid-column: 1 / -1; width: 100%; }
   .site-footer { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 18px 0 24px; line-height: 1.8; }
+  .updates-modal { align-items: end; padding: 8px; }
+  .updates-dialog { max-height: 92dvh; padding: 21px 17px; border-radius: 22px 22px 14px 14px; }
+  .updates-list { grid-template-columns: 1fr; gap: 8px; }
+  .update-card-wide { grid-column: auto; }
+  .update-card { padding: 14px; }
+  .updates-done { width: 100%; }
   .site-footer span:nth-child(2) { text-align: left; }
 }
 

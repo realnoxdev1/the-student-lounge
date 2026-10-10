@@ -25,7 +25,7 @@ The public request form is at `#request`; the owner inbox is at `#requests`. Set
 
 1. Create a Supabase project and note its **Project URL** and **anon/publishable key** from **Project Settings → API**. The browser key is public by design; never put a service-role key in the site.
 2. In Supabase **Authentication**, create the site owner's email/password user. Use that exact email in the following steps.
-3. Open `supabase-setup.sql`, replace `OWNER_EMAIL_HERE` with the owner's email, then run the SQL in the Supabase SQL Editor. This allows anyone to submit, but only the matching authenticated owner to read requests.
+3. Open `supabase-setup.sql`, replace `OWNER_EMAIL_HERE` with the owner's email, then run the entire SQL file in the Supabase SQL Editor. It creates or repairs the table (including adding missing `name` and `item` columns) and refreshes its API schema. It allows anyone to submit, but only the matching authenticated owner to read requests.
 4. Put the Project URL, anon/publishable key, and owner's email into `supabase-config.js`.
 5. Publish the site. Visitors submit through `#request`; sign in with the owner account at `#requests` to view submissions.
 

@@ -5,6 +5,14 @@ create table if not exists public.video_requests (
   created_at timestamptz not null default now()
 );
 
+-- Repair an existing table created without the fields the website submits.
+alter table public.video_requests add column if not exists name text;
+alter table public.video_requests add column if not exists item text;
+update public.video_requests set name = 'Unknown requester' where name is null or trim(name) = '';
+update public.video_requests set item = 'Request details unavailable' where item is null or trim(item) = '';
+alter table public.video_requests alter column name set not null;
+alter table public.video_requests alter column item set not null;
+
 alter table public.video_requests enable row level security;
 
 grant insert on table public.video_requests to anon, authenticated;
@@ -28,4 +36,6 @@ create policy "Only the owner can view requests"
   using (
     lower(coalesce(auth.jwt() ->> 'email', '')) = lower('karaas.botros2@gmail.com')
   );
+
+notify pgrst, 'reload schema';
 

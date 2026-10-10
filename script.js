@@ -67,6 +67,19 @@ function requestListMarkup(requests) {
   return `<section class="request-list-section" data-request-list aria-labelledby="request-list-title"><div class="section-heading"><div><span class="eyebrow">The request box</span><h2 id="request-list-title">All requests <span class="request-count">${requests.length}</span></h2></div><p>Suggestions submitted here appear in this list.</p></div><ul class="request-list">${content}</ul></section>`;
 }
 
+function privateInboxErrorMessage(error) {
+  if (error?.code === "PGRST205" || error?.code === "42P01") {
+    return "Supabase cannot find public.video_requests in this project. Make sure the table is named video_requests in the public schema, then run all of supabase-setup.sql in this same project’s SQL Editor.";
+  }
+  if (error?.code === "42501") {
+    return "The table exists, but Supabase is denying the owner read access. Re-run supabase-setup.sql with the owner email matching the signed-in account.";
+  }
+  if (error?.code === "PGRST204" || error?.code === "42703") {
+    return "The requests table columns do not match the site. It needs id, name, item, and created_at; check the table setup SQL.";
+  }
+  return "Supabase could not load the inbox. Check the table and row-level security policies, then retry.";
+}
+
 function todayKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -478,8 +491,10 @@ async function refreshPrivateRequests() {
     .select("id, name, item, created_at")
     .order("created_at", { ascending: false });
   if (requestError) {
+    console.error("Could not load private video requests.", requestError);
     results.hidden = false;
-    results.innerHTML = '<p class="request-form-status">Could not load requests. Check that the Supabase table and row security policies are set up.</p>';
+    results.innerHTML = `<p class="request-form-status">${privateInboxErrorMessage(requestError)}</p><button class="button secondary admin-retry" type="button" data-admin-retry>Try again</button>`;
+    results.querySelector("[data-admin-retry]")?.addEventListener("click", refreshPrivateRequests);
     return;
   }
 
@@ -519,16 +534,28 @@ function wirePageControls(route) {
       const submitButton = requestForm.querySelector('[type="submit"]');
       submitButton.disabled = true;
       status.textContent = "Sending your request…";
-      const { error } = await supabaseClient.from("video_requests").insert({ name, item });
-      submitButton.disabled = false;
-      if (error) {
-        console.error("Could not submit video request.", error);
-        status.textContent = "Could not send your request. Please try again later.";
-        return;
-      }
+      try {
+        const { error } = await supabaseClient.from("video_requests").insert({ name, item });
+        if (error) {
+          console.error("Could not submit video request.", error);
+          status.textContent = error.code === "PGRST205" || error.code === "42P01"
+            ? "The requests table is missing in Supabase. Karaas needs to run supabase-setup.sql in the Supabase SQL Editor, then try again."
+            : error.code === "PGRST204" || error.code === "42703"
+              ? "The requests table is missing its name or item column. Run the updated supabase-setup.sql in the Supabase SQL Editor, then try again."
+            : error.code === "42501"
+              ? "Supabase blocked this request. Check the insert permission and row security policy in supabase-setup.sql."
+              : "Could not send your request. Please check your connection and try again.";
+          return;
+        }
 
-      requestForm.reset();
-      status.textContent = "Thanks! Your request was sent privately to the site owner.";
+        requestForm.reset();
+        status.textContent = "Thanks! Your request was sent privately to the site owner.";
+      } catch (error) {
+        console.error("Could not reach Supabase to submit video request.", error);
+        status.textContent = "Could not reach the request database. Check your internet connection and try again.";
+      } finally {
+        submitButton.disabled = false;
+      }
     });
   }
 
@@ -697,5 +724,50 @@ function render() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function showRecentUpdates() {
+  const modal = document.querySelector("[data-updates-modal]");
+  const dialog = modal?.querySelector('[role="dialog"]');
+  if (!modal || !dialog) return;
+
+  const closeButtons = modal.querySelectorAll("[data-close-updates]");
+  const previousOverflow = document.body.style.overflow;
+  const previousFocus = document.activeElement;
+  const closeModal = () => {
+    modal.hidden = true;
+    document.body.style.overflow = previousOverflow;
+    document.removeEventListener("keydown", handleModalKeydown);
+    if (previousFocus instanceof HTMLElement && document.body.contains(previousFocus)) previousFocus.focus();
+  };
+  const handleModalKeydown = (event) => {
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = [...dialog.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  closeButtons.forEach((button) => button.addEventListener("click", closeModal));
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) closeModal();
+  });
+  document.body.style.overflow = "hidden";
+  modal.hidden = false;
+  document.addEventListener("keydown", handleModalKeydown);
+  closeButtons[0]?.focus();
+}
+
 window.addEventListener("hashchange", render);
 render();
+showRecentUpdates();

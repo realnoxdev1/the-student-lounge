@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&family=Lora:wght@500;600&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <div class="site-shell">
@@ -46,9 +46,46 @@
         <span>Created by Karaas Botros</span>
       </footer>
     </div>
+    <div class="updates-modal" data-updates-modal hidden>
+      <section class="updates-dialog" role="dialog" aria-modal="true" aria-labelledby="updates-title" aria-describedby="updates-intro">
+        <div class="updates-dialog-header">
+          <span class="eyebrow">The Student Lounge · What’s new</span>
+          <button class="updates-close" type="button" data-close-updates aria-label="Close updates">✕</button>
+        </div>
+        <h2 id="updates-title">Fresh things in the lounge.</h2>
+        <p id="updates-intro" class="updates-intro">Here’s what’s been added and improved recently.</p>
+        <div class="updates-list">
+          <article class="update-card">
+            <span class="update-person">Aidan’s page</span>
+            <h3>Three new songs</h3>
+            <p>Djo — “End Of Beginning”; The Killers — “Mr Brightside”; and Mustard ft. Migos — “Pure Water”.</p>
+          </article>
+          <article class="update-card">
+            <span class="update-person">Christian’s page</span>
+            <h3>Three new songs</h3>
+            <p>The Buggles — “Video Killed The Radio Star”; Silver — “Wham Bam Shang-A-Lang”; and Blue Swede — “Hooked On A Feeling”.</p>
+          </article>
+          <article class="update-card update-card-wide">
+            <span class="update-person">A better way to request</span>
+            <h3>The form is part of the website now</h3>
+            <p>Visitors can submit their name and a video or game suggestion without leaving the lounge. Requests go to a separate private inbox that only Karaas can view after signing in.</p>
+          </article>
+          <article class="update-card update-card-wide">
+            <span class="update-person">Growing together</span>
+            <h3>More people, more picks</h3>
+            <p>It’s easier for Karaas to add videos and games to each person’s page, so the lounge can keep growing with everyone’s favorites.</p>
+          </article>
+        </div>
+        <aside class="updates-community-note">
+          <strong>We’re still adding new items and things!</strong>
+          <p>We’re also looking for new people to help with The Student Lounge. Helpers will get The Student Lounge Pro. It isn’t set up yet, but is planned to be ready by October 13.</p>
+        </aside>
+        <button class="button primary updates-done" type="button" data-close-updates>Explore the lounge</button>
+      </section>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=1"></script>
-    <script src="script.js?v=15"></script>
+    <script src="script.js?v=19"></script>
     <script data-goatcounter="https://noxdev.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   </body>
 </html>
