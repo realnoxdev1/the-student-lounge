@@ -536,7 +536,6 @@ async function refreshAccountPage() {
     memberPanel.hidden = !user;
     if (!user) return;
 
-    app.querySelector("[data-account-name]").textContent = user.user_metadata?.display_name || "Lounge member";
     app.querySelector("[data-account-email]").textContent = user.email || "";
     const badge = app.querySelector("[data-pro-badge]");
     const proStatus = app.querySelector("[data-pro-status]");
@@ -556,6 +555,9 @@ async function refreshAccountPage() {
 
     const expiry = entitlement?.expires_at ? new Date(entitlement.expires_at) : null;
     const hasPro = Boolean(entitlement && (!expiry || expiry > new Date()));
+    app.querySelector("[data-account-name]").textContent = hasPro
+      ? "Lounge Pro Member"
+      : user.user_metadata?.display_name || "Lounge member";
     badge.textContent = hasPro ? "Pro member" : "Lounge member";
     proCard.classList.toggle("is-pro", hasPro);
     proStatus.textContent = hasPro
