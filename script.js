@@ -15,6 +15,12 @@ const supabaseConfig = window.studentLoungeSupabaseConfig || {};
 const supabaseClient = window.supabase && supabaseConfig.url && supabaseConfig.anonKey
   ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
   : null;
+const googleOAuthReturnKey = "student-lounge-google-oauth-return";
+supabaseClient?.auth.onAuthStateChange((event, session) => {
+  if (event !== "SIGNED_IN" || !session || sessionStorage.getItem(googleOAuthReturnKey) !== "true") return;
+  sessionStorage.removeItem(googleOAuthReturnKey);
+  if (window.location.hash !== "#account") window.location.hash = "account";
+});
 const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${encodeURIComponent(window.location.origin)}&rel=0&playsinline=1`;
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
@@ -577,12 +583,14 @@ async function startGoogleSignIn(statusElement) {
   if (statusElement) statusElement.textContent = "Opening Google sign-in…";
 
   try {
+    sessionStorage.setItem(googleOAuthReturnKey, "true");
     const { error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}${window.location.pathname}#account` }
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}` }
     });
     if (error) throw error;
   } catch (error) {
+    sessionStorage.removeItem(googleOAuthReturnKey);
     console.error("Google sign-in failed.", error);
     if (statusElement) {
       statusElement.textContent = error.message?.toLowerCase().includes("provider")
