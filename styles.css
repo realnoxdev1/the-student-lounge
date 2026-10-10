@@ -157,7 +157,25 @@ h1 em { color: var(--blue); font-style: normal; }
 .request-note p { color: rgba(255,255,255,.78); line-height: 1.6; }
 .request-note .button { border-color: white; background: white; color: var(--ink); }
 .form-card { padding: 10px; border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); }
-.form-card iframe { display: block; width: 100%; min-height: 680px; border: 0; border-radius: 16px; }
+.request-form { display: grid; gap: 12px; padding: clamp(20px, 3vw, 32px); }
+.request-form label { margin-top: 5px; color: var(--ink); font-size: .82rem; font-weight: 700; }
+.request-form input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--ink); background: var(--paper); font: inherit; }
+.request-form input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.request-form .button { justify-self: start; margin-top: 8px; }
+.request-form-status { min-height: 1.3em; margin: 0; color: var(--blue); font-size: .8rem; }
+.request-list-section { padding: 0 0 90px; }
+.request-count { display: inline-grid; place-items: center; min-width: 30px; height: 30px; margin-left: 5px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font: 700 .82rem var(--font-body); vertical-align: middle; }
+.request-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.request-entry { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.request-entry h3 { margin: 0 0 5px; font-family: var(--font-display); font-size: 1.15rem; }
+.request-entry p, .request-entry time { margin: 0; color: var(--muted); font-size: .76rem; }
+.request-entry time { flex: 0 0 auto; text-align: right; }
+.request-empty { padding: 22px; border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); background: var(--card-soft); }
+.admin-requests-panel { max-width: 780px; margin: 0 0 90px; padding: 12px; border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); }
+.admin-requests-panel [hidden] { display: none !important; }
+.admin-login-form { max-width: 520px; margin: auto; }
+.admin-status { padding: 12px 20px; }
+.admin-sign-out { margin: 18px 18px 0; }
 .settings-panel { display: flex; justify-content: space-between; gap: 30px; align-items: center; margin: 10px 0 110px; padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); box-shadow: var(--shadow); }
 .settings-panel h2 { margin: 8px 0 5px; font-family: var(--font-display); font-size: 2.2rem; font-weight: 500; letter-spacing: -.05em; }
 .settings-panel p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.55; }
@@ -429,7 +447,7 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
 .request-note p { position: relative; z-index: 1; max-width: 400px; font-size: .9rem; }
 .request-note .button { position: relative; z-index: 1; align-self: flex-start; border: 0; background: white; color: #26304b; }
 .form-card { padding: 9px; border-radius: 24px; box-shadow: var(--shadow); }
-.form-card iframe { min-height: 680px; border-radius: 17px; }
+.request-form { padding: clamp(23px, 4vw, 38px); }
 .settings-panel { align-items: flex-start; margin: 0 0 40px; padding: 30px; border-radius: 24px; box-shadow: 0 12px 34px rgba(29, 43, 81, .045); }
 .settings-panel h2 { font-family: var(--font-display); font-size: 1.8rem; font-weight: 800; letter-spacing: -.06em; }
 .settings-panel p { font-size: .83rem; }
@@ -509,7 +527,9 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
   .request-layout { grid-template-columns: 1fr; gap: 16px; padding: 0 0 50px; }
   .request-note { min-height: 290px; padding: 27px 24px; border-radius: 22px; }
   .request-note h2 { font-size: 2.55rem; }
-  .form-card iframe { min-height: 720px; }
+  .request-form { padding: 20px 15px; }
+  .request-entry { align-items: flex-start; flex-direction: column; gap: 9px; }
+  .request-entry time { text-align: left; }
   .settings-panel { display: block; margin: 0 0 30px; padding: 23px; border-radius: 20px; }
   .settings-panel h2 { font-size: 1.7rem; }
   .theme-control { min-width: 0; margin-top: 23px; }

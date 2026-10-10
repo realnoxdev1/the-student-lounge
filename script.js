@@ -4,13 +4,17 @@ const people = [
   { slug: "micheal-phelps", name: "Micheal Phelps", note: "Two picks for a quiet watch", media: videos([["Unstable SMP: The Mafia", "CpNP39w2hEk"], ["STELLA LEFTY - Boston", "VrChRBLw3OQ"]]) },
   { slug: "micheal-collins", name: "Micheal Collins - Me", note: "A classic cartoon corner", media: videos([["Tom & Jerry in Full Screen", "t0Q2otsqC4I"]]) },
   { slug: "colin-o", name: "Colin O", note: "A full playlist for the room", media: videos([["Lil Baby - Dead Fresh", "PXxbEfhtDiM"], ["Kodak Black - Already", "vhmpbXsAl9c"], ["Don Toliver - E85", "7GwLnsVUwHY"], ["Drake - Headlines", "cimoNqiulUE"], ["Kanye West - Homecoming", "LQ488QrqGE4"], ["Don Toliver - Excavator", "_SrosL0WdOQ"]]) },
-  { slug: "aidan", name: "Aidan", note: "Music, plus two games to pick up", media: videos([["Lil Baby - Dead Fresh", "PXxbEfhtDiM"], ["Don Toliver - No Pole", "nM_ZUbSIA0Q"]]), games: [["Tetr.io-style game", "https://telatro.tomcat.sh/game/"], ["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
-  { slug: "christian", name: "Christian", note: "A lot of music and a game break", media: videos([["Rebecca Black - Friday", "WqVIvVh-dkI"], ["ELO - Mr Blue Sky", "sQiPtneudlo"], ["Pharrell Williams - Double Life", "fWtn6RMNiok"], ["Avicii - The Nights", "UtF6Jej8yb4"], ["Avicii - The Nights (Lyrics)", "H78YW7ycuwI"], ["Post Malone, Swae Lee - Sunflower", "ApXoWvfEYVU"], ["Imagine Dragons - Believer", "W0DM5lcj6mw"], ["Redbone - Come and Get Your Love", "wFwYcHjP-YU"], ["Imagine Dragons - Thunder", "GtEvysh1654"]]), games: [["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
+  { slug: "aidan", name: "Aidan", note: "Music, plus two games to pick up", media: videos([["Lil Baby - Dead Fresh", "PXxbEfhtDiM"], ["Don Toliver - No Pole", "nM_ZUbSIA0Q"], ["Djo - End Of Beginning (Lyrics)", "B3Z4XGAxJB0"], ["The Killers - Mr Brightside (Lyrics)", "j8tZs6G_h7U"], ["Mustard - Pure Water [Lyrics/Lyric] Ft. Migos", "hVsEbUm-kb0"]]), games: [["Tetr.io-style game", "https://telatro.tomcat.sh/game/"], ["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
+  { slug: "christian", name: "Christian", note: "A lot of music and a game break", media: videos([["Rebecca Black - Friday", "WqVIvVh-dkI"], ["ELO - Mr Blue Sky", "sQiPtneudlo"], ["Pharrell Williams - Double Life", "fWtn6RMNiok"], ["Avicii - The Nights", "UtF6Jej8yb4"], ["Avicii - The Nights (Lyrics)", "H78YW7ycuwI"], ["Post Malone, Swae Lee - Sunflower", "ApXoWvfEYVU"], ["Imagine Dragons - Believer", "W0DM5lcj6mw"], ["Redbone - Come and Get Your Love", "wFwYcHjP-YU"], ["Imagine Dragons - Thunder", "GtEvysh1654"], ["The Buggles - Video Killed The Radio Star (Lyrics)", "XMEN_FsVg_c"], ["Silver - Wham Bam Shang-A-Lang", "M5iSEdo5VNI"], ["Blue Swede - Hooked On A Feeling", "Bo-qweh7nbQ"]]), games: [["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
   { slug: "henry", name: "Henry", note: "One game, ready when you are", games: [["Tetr.io-style game", "https://telatro.tomcat.sh/game/"]] }
 ];
 
 const app = document.querySelector("#app");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+const supabaseConfig = window.studentLoungeSupabaseConfig || {};
+const supabaseClient = window.supabase && supabaseConfig.url && supabaseConfig.anonKey
+  ? window.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
+  : null;
 const videoUrl = (id) => `https://www.youtube-nocookie.com/embed/${id}?origin=${encodeURIComponent(window.location.origin)}&rel=0&playsinline=1`;
 const watchUrl = (id) => `https://www.youtube.com/watch?v=${id}`;
 const themeStorageKey = "student-lounge-theme";
@@ -47,6 +51,20 @@ function savePoints(value) {
   localStorage.setItem(pointsStorageKey, String(value));
   const pointsDisplay = document.querySelector("[data-points-total]");
   if (pointsDisplay) pointsDisplay.textContent = String(value);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]);
+}
+
+function requestListMarkup(requests) {
+  const entries = requests.map((request) => {
+    const date = new Date(request.created_at);
+    const dateLabel = Number.isNaN(date.getTime()) ? "Saved request" : date.toLocaleString();
+    return `<li class="request-entry"><div><h3>${escapeHtml(request.item)}</h3><p>Requested by ${escapeHtml(request.name)}</p></div><time>${escapeHtml(dateLabel)}</time></li>`;
+  }).join("");
+  const content = entries || '<li class="request-empty">No requests yet. Be the first to suggest something.</li>';
+  return `<section class="request-list-section" data-request-list aria-labelledby="request-list-title"><div class="section-heading"><div><span class="eyebrow">The request box</span><h2 id="request-list-title">All requests <span class="request-count">${requests.length}</span></h2></div><p>Suggestions submitted here appear in this list.</p></div><ul class="request-list">${content}</ul></section>`;
 }
 
 function todayKey() {
@@ -395,7 +413,7 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 function homePage() {
-  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">Browse people <span>↗</span></a><a class="button secondary" href="#requests">Request an item</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch an ad, earn 50 points.</h2><p>Choose from two ads with the same button. Watch either one as many times as you like; every completed ad earns 50 points.</p></div><button class="button primary" type="button" data-open-reward>Watch an ad for +50 points</button></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
+  return `<section class="hero"><div class="hero-copy"><span class="eyebrow">Your shared corner of the internet</span><h1>Come in.<br />Stay <em>awhile.</em></h1><p>A low-pressure place for the people, videos, and games that make a school day feel a little lighter.</p><div class="hero-actions"><a class="button primary" href="#people">Browse people <span>↗</span></a><a class="button secondary" href="#request">Request a video</a></div></div><div class="hero-art"><img src="logo.png" alt="The Student Lounge" draggable="false" title="Drag to move the logo" /><span class="sticker">always open</span></div></section><section class="reward-panel"><div class="reward-copy"><span class="eyebrow">Lounge reward</span><h2>Watch an ad, earn 50 points.</h2><p>Choose from two ads with the same button. Watch either one as many times as you like; every completed ad earns 50 points.</p></div><button class="button primary" type="button" data-open-reward>Watch an ad for +50 points</button></section><div class="reward-ad-modal" data-reward-modal hidden aria-live="polite"><div class="reward-ad-dialog" role="dialog" aria-modal="true" aria-label="Reward ad"><div class="reward-ad-header"><span class="eyebrow">Reward ad</span><button type="button" class="reward-ad-close" data-close-reward aria-label="Close reward ad" disabled>✕</button></div><iframe data-reward-iframe title="Reward ad" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe><p class="reward-ad-status" data-reward-status>Finish the video to claim your reward.</p></div></div>`;
 }
 
 function peopleDirectoryPage() {
@@ -414,7 +432,66 @@ function hanyPage() {
 }
 
 function requestsPage() {
-  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request an item.</h1><p>Have a video, song, or game in mind? Send your suggestion and help make the lounge yours.</p></section><section class="request-layout"><div class="request-note"><h2>Leave a little something for the room.</h2><p>Use the form to request a video, song, or game. It opens in the panel beside this note, so you never have to leave the lounge.</p><a class="button" href="https://forms.gle/fc5mWuPjdMgMvXL58" target="_blank" rel="noreferrer">Open form in new tab ↗</a></div><div class="form-card"><iframe src="https://forms.gle/fc5mWuPjdMgMvXL58" title="Request an item">Loading…</iframe></div></section>`;
+  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a video or game.</h1><p>Send a suggestion for the lounge. Your name and suggestion will only be visible in the owner’s private requests inbox.</p></section><section class="request-layout"><div class="form-card"><form class="request-form" data-request-form><label for="request-name">#1 Whats your name?</label><input id="request-name" name="name" type="text" autocomplete="name" maxlength="80" required /><label for="request-item">#2 What is the video or game name you want?</label><input id="request-item" name="item" type="text" maxlength="160" required /><button class="button primary" type="submit">Send request <span aria-hidden="true">↗</span></button><p class="request-form-status" data-request-status aria-live="polite"></p></form></div><aside class="request-note"><span class="eyebrow">A note about requests</span><h2>Help grow the lounge.</h2><p>Submissions are sent to a private inbox. Only the site owner can sign in to view them.</p></aside></section>`;
+}
+
+function privateRequestsPage() {
+  return `<section class="page-head"><span class="eyebrow">Owner access</span><h1>Private requests.</h1><p>Sign in with the owner account to view the suggestions submitted by visitors.</p></section><section class="admin-requests-panel"><form class="request-form admin-login-form" data-admin-login hidden><label for="admin-email">Owner email</label><input id="admin-email" name="email" type="email" autocomplete="username" required /><label for="admin-password">Password</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button></form><p class="request-form-status admin-status" data-admin-status aria-live="polite">Checking owner access…</p><div data-admin-results hidden></div></section>`;
+}
+
+async function refreshPrivateRequests() {
+  const loginForm = app.querySelector("[data-admin-login]");
+  const status = app.querySelector("[data-admin-status]");
+  const results = app.querySelector("[data-admin-results]");
+  if (!loginForm || !status || !results) return;
+
+  if (!supabaseClient || !supabaseConfig.adminEmail) {
+    status.textContent = "The private inbox needs Supabase project settings. See the setup steps in README.md.";
+    return;
+  }
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    loginForm.hidden = false;
+    status.textContent = "Could not check sign-in. Please reload and try again.";
+    return;
+  }
+
+  const session = data.session;
+  if (!session) {
+    loginForm.hidden = false;
+    status.textContent = "Sign in with the site owner account to view requests.";
+    return;
+  }
+
+  if (session.user.email?.toLowerCase() !== supabaseConfig.adminEmail.toLowerCase()) {
+    await supabaseClient.auth.signOut();
+    loginForm.hidden = false;
+    status.textContent = "This account is not authorized to view the requests.";
+    return;
+  }
+
+  loginForm.hidden = true;
+  status.textContent = "Owner signed in. Only this account can read the private inbox.";
+  const { data: requests, error: requestError } = await supabaseClient
+    .from("video_requests")
+    .select("id, name, item, created_at")
+    .order("created_at", { ascending: false });
+  if (requestError) {
+    results.hidden = false;
+    results.innerHTML = '<p class="request-form-status">Could not load requests. Check that the Supabase table and row security policies are set up.</p>';
+    return;
+  }
+
+  results.hidden = false;
+  results.innerHTML = `<button class="button secondary admin-sign-out" type="button" data-admin-sign-out>Sign out</button>${requestListMarkup(requests || [])}`;
+  results.querySelector("[data-admin-sign-out]")?.addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    results.hidden = true;
+    loginForm.hidden = false;
+    loginForm.reset();
+    status.textContent = "You have signed out.";
+  });
 }
 
 function settingsPage() {
@@ -422,6 +499,66 @@ function settingsPage() {
 }
 
 function wirePageControls(route) {
+  if (route === "request") {
+    const requestForm = app.querySelector("[data-request-form]");
+    requestForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const name = requestForm.elements.namedItem("name").value.trim();
+      const item = requestForm.elements.namedItem("item").value.trim();
+      const status = app.querySelector("[data-request-status]");
+      if (!name || !item) {
+        status.textContent = "Please fill in both required fields.";
+        return;
+      }
+
+      if (!supabaseClient) {
+        status.textContent = "Requests are not connected yet. Please try again later.";
+        return;
+      }
+
+      const submitButton = requestForm.querySelector('[type="submit"]');
+      submitButton.disabled = true;
+      status.textContent = "Sending your request…";
+      const { error } = await supabaseClient.from("video_requests").insert({ name, item });
+      submitButton.disabled = false;
+      if (error) {
+        console.error("Could not submit video request.", error);
+        status.textContent = "Could not send your request. Please try again later.";
+        return;
+      }
+
+      requestForm.reset();
+      status.textContent = "Thanks! Your request was sent privately to the site owner.";
+    });
+  }
+
+  if (route === "requests") {
+    const loginForm = app.querySelector("[data-admin-login]");
+    loginForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const email = loginForm.elements.namedItem("email").value.trim();
+      const password = loginForm.elements.namedItem("password").value;
+      const status = app.querySelector("[data-admin-status]");
+      if (!supabaseClient || email.toLowerCase() !== supabaseConfig.adminEmail?.toLowerCase()) {
+        status.textContent = "That email is not authorized for the private inbox.";
+        return;
+      }
+
+      const button = loginForm.querySelector('[type="submit"]');
+      button.disabled = true;
+      status.textContent = "Signing in…";
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      button.disabled = false;
+      if (error) {
+        status.textContent = "Sign-in failed. Check the owner email and password.";
+        return;
+      }
+
+      loginForm.reset();
+      await refreshPrivateRequests();
+    });
+  }
+
   const heroLogo = document.querySelector(".hero-art img");
   if (heroLogo) {
     let dragStart;
@@ -545,7 +682,7 @@ function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
   const pageRoute = route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "requests" ? requestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
   if (pageRoute === "home") mountDailyPoll();
   if (pageRoute === "settings") mountCustomizations();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || pageRoute === "people" ? "people" : route)));
@@ -553,6 +690,7 @@ function render() {
   if (pointsDisplay) pointsDisplay.textContent = String(loadPoints());
   updateRewardButtonState();
   wirePageControls(pageRoute);
+  if (pageRoute === "requests") refreshPrivateRequests();
   attachRewardListeners();
   attachEconomyListeners();
 
