@@ -513,6 +513,152 @@ function settingsPage() {
   return `<section class="page-head"><span class="eyebrow">Make it yours</span><h1>Settings.</h1><p>Choose the atmosphere that feels right. Your choice stays with you on this device.</p></section><section class="settings-panel"><div><span class="eyebrow">Appearance</span><h2>Color mode</h2><p>Device mode follows your computer or phone preference automatically.</p></div><div class="theme-control"><span>Theme</span><div class="theme-options" role="group" aria-label="Color mode"><button type="button" class="theme-option" data-theme-option="auto"><strong>Device</strong><small>Follow device</small></button><button type="button" class="theme-option" data-theme-option="light"><strong>Light</strong><small>Soft paper</small></button><button type="button" class="theme-option" data-theme-option="dark"><strong>Dark</strong><small>Low light</small></button></div></div></section>`;
 }
 
+function accountPage() {
+  return `<section class="page-head"><span class="eyebrow">Your lounge account</span><h1>Keep your place.</h1><p>Create an account or sign in. Your Pro status will be stored with your account, so it follows you when you sign in on another device.</p></section><section class="account-panel" aria-label="Account management"><div data-account-guest><form class="request-form" data-account-sign-in><h2>Welcome back.</h2><label for="account-signin-email">Email</label><input id="account-signin-email" name="email" type="email" autocomplete="username" required /><label for="account-signin-password">Password</label><input id="account-signin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button><p class="account-switch">New here? <button type="button" data-account-show-sign-up>Create an account</button></p></form><form class="request-form" data-account-sign-up hidden><h2>Make your account.</h2><label for="account-display-name">Your name</label><input id="account-display-name" name="displayName" type="text" autocomplete="name" maxlength="80" required /><label for="account-signup-email">Email</label><input id="account-signup-email" name="email" type="email" autocomplete="email" required /><label for="account-signup-password">Create a password</label><input id="account-signup-password" name="password" type="password" autocomplete="new-password" minlength="8" required /><button class="button primary" type="submit">Create account</button><p class="account-switch">Already have an account? <button type="button" data-account-show-sign-in>Sign in</button></p></form></div><div data-account-member hidden><div class="account-identity"><div><span class="eyebrow">Signed in as</span><h2 data-account-name>Your account</h2><p class="account-email" data-account-email></p></div><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div><div class="pro-status-card" data-pro-status-card><span class="pro-badge" data-pro-badge>Checking Pro</span><p data-pro-status>Checking your membership…</p></div></div><p class="account-message" data-account-message aria-live="polite">${supabaseClient ? "" : "Account sign-in isn't connected yet. Please try again later."}</p></section>`;
+}
+
+async function refreshAccountPage() {
+  const guestPanel = app.querySelector("[data-account-guest]");
+  const memberPanel = app.querySelector("[data-account-member]");
+  const message = app.querySelector("[data-account-message]");
+  if (!guestPanel || !memberPanel || !message) return;
+
+  if (!supabaseClient) {
+    message.textContent = "Account sign-in isn't connected. Check the Supabase settings and refresh.";
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    const user = data.session?.user;
+    guestPanel.hidden = Boolean(user);
+    memberPanel.hidden = !user;
+    if (!user) return;
+
+    app.querySelector("[data-account-name]").textContent = user.user_metadata?.display_name || "Lounge member";
+    app.querySelector("[data-account-email]").textContent = user.email || "";
+    const badge = app.querySelector("[data-pro-badge]");
+    const proStatus = app.querySelector("[data-pro-status]");
+    const proCard = app.querySelector("[data-pro-status-card]");
+    const { data: entitlement, error: entitlementError } = await supabaseClient
+      .from("pro_entitlements")
+      .select("expires_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (entitlementError) {
+      console.error("Could not read account Pro status.", entitlementError);
+      badge.textContent = "Pro status unavailable";
+      proStatus.textContent = "Run the account and Pro setup in supabase-setup.sql, then reload this page.";
+      return;
+    }
+
+    const expiry = entitlement?.expires_at ? new Date(entitlement.expires_at) : null;
+    const hasPro = Boolean(entitlement && (!expiry || expiry > new Date()));
+    badge.textContent = hasPro ? "Pro member" : "Lounge member";
+    proCard.classList.toggle("is-pro", hasPro);
+    proStatus.textContent = hasPro
+      ? expiry ? `Pro is active until ${expiry.toLocaleDateString()}. It is linked to this account.` : "Pro is active on this account. Sign in with this account on another device to keep your membership." 
+      : "No Pro membership is linked to this account yet. When the helper program opens, Pro access can be granted to this account.";
+  } catch (error) {
+    console.error("Could not load account details.", error);
+    message.textContent = "Could not check your account right now. Check your connection and reload.";
+  }
+}
+
+function wireAccountControls() {
+  const signInForm = app.querySelector("[data-account-sign-in]");
+  const signUpForm = app.querySelector("[data-account-sign-up]");
+  const message = app.querySelector("[data-account-message]");
+  if (!signInForm || !signUpForm || !message) return;
+
+  app.querySelector("[data-account-show-sign-up]")?.addEventListener("click", () => {
+    signInForm.hidden = true;
+    signUpForm.hidden = false;
+    message.textContent = "";
+  });
+  app.querySelector("[data-account-show-sign-in]")?.addEventListener("click", () => {
+    signUpForm.hidden = true;
+    signInForm.hidden = false;
+    message.textContent = "";
+  });
+
+  signInForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient) return;
+    const button = signInForm.querySelector('[type="submit"]');
+    button.disabled = true;
+    message.textContent = "Signing in…";
+    try {
+      const { error } = await supabaseClient.auth.signInWithPassword({
+        email: signInForm.elements.namedItem("email").value.trim(),
+        password: signInForm.elements.namedItem("password").value
+      });
+      if (error) throw error;
+      signInForm.reset();
+      message.textContent = "";
+      await refreshAccountPage();
+    } catch (error) {
+      console.error("Account sign-in failed.", error);
+      message.textContent = "Sign-in failed. Check the email and password, then try again.";
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  signUpForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient) return;
+    const button = signUpForm.querySelector('[type="submit"]');
+    button.disabled = true;
+    message.textContent = "Creating your account…";
+    const displayName = signUpForm.elements.namedItem("displayName").value.trim();
+    const email = signUpForm.elements.namedItem("email").value.trim();
+    const password = signUpForm.elements.namedItem("password").value;
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: displayName },
+          emailRedirectTo: `${window.location.origin}${window.location.pathname}#account`
+        }
+      });
+      if (error) throw error;
+      signUpForm.reset();
+      if (data.session) {
+        message.textContent = "Account created. You’re signed in.";
+        await refreshAccountPage();
+      } else {
+        signUpForm.hidden = true;
+        signInForm.hidden = false;
+        message.textContent = "Account created. Check your email to confirm it, then sign in.";
+      }
+    } catch (error) {
+      console.error("Account registration failed.", error);
+      message.textContent = error.message?.toLowerCase().includes("redirect")
+        ? "Supabase needs this website URL added to Authentication → URL Configuration → Redirect URLs."
+        : "Could not create the account. The email may already be registered, or Supabase may need account sign-up enabled.";
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  app.querySelector("[data-account-sign-out]")?.addEventListener("click", async () => {
+    const button = app.querySelector("[data-account-sign-out]");
+    button.disabled = true;
+    const { error } = await supabaseClient.auth.signOut();
+    button.disabled = false;
+    if (error) {
+      message.textContent = "Could not sign out. Please try again.";
+      return;
+    }
+    message.textContent = "You’re signed out.";
+    await refreshAccountPage();
+  });
+}
+
 function wirePageControls(route) {
   if (route === "request") {
     const requestForm = app.querySelector("[data-request-form]");
@@ -709,7 +855,7 @@ function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
   const pageRoute = route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
   if (pageRoute === "home") mountDailyPoll();
   if (pageRoute === "settings") mountCustomizations();
   document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || pageRoute === "people" ? "people" : route)));
@@ -718,6 +864,10 @@ function render() {
   updateRewardButtonState();
   wirePageControls(pageRoute);
   if (pageRoute === "requests") refreshPrivateRequests();
+  if (pageRoute === "account") {
+    wireAccountControls();
+    refreshAccountPage();
+  }
   attachRewardListeners();
   attachEconomyListeners();
 

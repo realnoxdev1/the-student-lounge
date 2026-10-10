@@ -39,3 +39,31 @@ create policy "Only the owner can view requests"
 
 notify pgrst, 'reload schema';
 
+-- Account-linked Pro access: signed-in users can read their own entitlement;
+-- no browser client can grant or edit Pro status.
+create table if not exists public.pro_entitlements (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  granted_at timestamptz not null default now(),
+  expires_at timestamptz,
+  grant_reason text not null default 'helper'
+);
+
+alter table public.pro_entitlements enable row level security;
+revoke all on table public.pro_entitlements from anon, authenticated;
+grant select on table public.pro_entitlements to authenticated;
+
+drop policy if exists "Users can read their own Pro status" on public.pro_entitlements;
+create policy "Users can read their own Pro status"
+  on public.pro_entitlements
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- To grant Pro after a helper has created an account, replace the email below
+-- and run this separately in the Supabase SQL Editor:
+-- insert into public.pro_entitlements (user_id, grant_reason)
+-- select id, 'helper' from auth.users where lower(email) = lower('HELPER_EMAIL_HERE')
+-- on conflict (user_id) do update set grant_reason = excluded.grant_reason, expires_at = null;
+
+notify pgrst, 'reload schema';
+

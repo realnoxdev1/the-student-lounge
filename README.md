@@ -19,6 +19,12 @@ Open http://localhost:4173.
 
 GitHub will provide a URL like `https://your-username.github.io/the-student-lounge/`.
 
+## Set up accounts and Pro access
+
+The **Account** page uses Supabase Auth. Users sign up or sign in with email and password; Supabase keeps their session, and Pro access is stored against their Auth user ID in a database table (not browser storage). Browser clients can read only their own Pro status and cannot grant it. Payments are not included; the owner awards helper access through the SQL Editor.
+
+In Supabase **Authentication → URL Configuration**, set the site URL to `https://realnoxdev1.github.io/the-student-lounge/` and add `https://realnoxdev1.github.io/the-student-lounge/**` and `http://localhost:4173/**` to allowed redirect URLs so email confirmation can return to the Account page. Then run the full `supabase-setup.sql` again to create the secure `pro_entitlements` table. To award a helper Pro, first have them create an account, then run the commented grant query at the bottom of that SQL file with their email. Never put a Supabase service-role key in the website.
+
 ## Set up private video requests
 
 The public request form is at `#request`; the owner inbox is at `#requests`. Set up Supabase once before publishing:
