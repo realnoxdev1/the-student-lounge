@@ -54,9 +54,38 @@ const profileStorageKey = "student-lounge-profile";
 const chatStorageKey = "student-lounge-chat-fallback";
 const profileFonts = [
   { value: "classic", label: "Classic" },
+  { value: "dm-sans", label: "DM Sans" },
   { value: "lora", label: "Lora" },
-  { value: "nunito", label: "Nunito" }
+  { value: "nunito", label: "Nunito" },
+  { value: "fraunces", label: "Fraunces" },
+  { value: "manrope", label: "Manrope" }
 ];
+const proBannerPresets = [
+  { value: "linear-gradient(135deg, #7ab8ff 0%, #b78cff 45%, #ffd5a8 100%)", label: "Aurora sweep" },
+  { value: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 40%, #7dd3fc 100%)", label: "Night tide" },
+  { value: "linear-gradient(135deg, #f59e0b 0%, #f97316 38%, #fda4af 100%)", label: "Golden hour" },
+  { value: "linear-gradient(135deg, #22c55e 0%, #10b981 35%, #a7f3d0 100%)", label: "Forest glow" },
+  { value: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 48%, #22d3ee 100%)", label: "Velvet dusk" },
+  { value: "linear-gradient(135deg, #111827 0%, #374151 40%, #d97706 100%)", label: "Midnight ink" }
+];
+
+function getAccountRole(email = "") {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  if (["kbotros2027@staschool.us", "karaas.botros2@gmail.com"].includes(normalizedEmail)) return "Developer";
+  if (normalizedEmail === "aluckay2027@staschool.us") return "Helper";
+  return "";
+}
+
+function updateRoleTag(target, role) {
+  target?.parentElement?.querySelector("[data-role-tag]")?.remove();
+  if (!target || !role) return;
+
+  const tag = document.createElement("span");
+  tag.className = `role-tag role-tag-${role.toLowerCase()}`;
+  tag.dataset.roleTag = "";
+  tag.textContent = role;
+  target.insertAdjacentElement("afterend", tag);
+}
 
 function getDefaultProfile(user = null) {
   const baseName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Lounge member";
@@ -92,7 +121,7 @@ async function loadCurrentProfile(user = null) {
   try {
     const { data, error } = await supabaseClient
       .from("user_profiles")
-      .select("username, avatar_url, banner_url, preferred_font")
+      .select("username, avatar_url, banner_url, preferred_font, role")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -103,7 +132,8 @@ async function loadCurrentProfile(user = null) {
       username: data.username || getDefaultProfile(user).username,
       avatar_url: data.avatar_url || "",
       banner_url: data.banner_url || "",
-      preferred_font: data.preferred_font || "classic"
+      preferred_font: data.preferred_font || "classic",
+      role: getAccountRole(user.email) || data.role || ""
     };
   } catch (error) {
     console.warn("Could not load profile details.", error);
@@ -142,6 +172,27 @@ async function saveCurrentProfile(user, profile) {
 function applyProfileTheme(profile = getLocalProfile()) {
   const fontName = profile.preferred_font && profile.preferred_font !== "classic" ? profile.preferred_font : "classic";
   document.documentElement.dataset.profileFont = fontName;
+  document.body.dataset.profileFont = fontName;
+}
+
+async function uploadProfileImage(file, user) {
+  if (!file || !user || !supabaseClient) return "";
+
+  const safeName = `${user.id}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+  const { error } = await supabaseClient.storage
+    .from("avatars")
+    .upload(safeName, file, { upsert: true, cacheControl: "3600" });
+
+  if (error) throw error;
+
+  const { data } = supabaseClient.storage.from("avatars").getPublicUrl(safeName);
+  return data?.publicUrl || "";
+}
+
+function bannerBackgroundStyle(value) {
+  if (!value) return "";
+  if (value.startsWith("linear-gradient")) return value;
+  return `url("${value}")`;
 }
 
 function favoritePlaylistMarkup() {
@@ -734,6 +785,8 @@ async function refreshAccountPage() {
 
     app.querySelector("[data-account-email]").textContent = user.email || "";
     app.querySelector("[data-account-name]").textContent = profile.username || "Lounge member";
+    const accountRole = getAccountRole(user.email);
+    app.querySelectorAll("[data-account-name]").forEach((name) => updateRoleTag(name, accountRole));
     const initials = getInitialsName(profile.username || user.email || "Lounge member");
     if (profileAvatar) {
       profileAvatar.innerHTML = profile.avatar_url ? `<img src="${profile.avatar_url}" alt="${escapeHtml(profile.username || "Profile picture")}" />` : `<span>${escapeHtml(initials)}</span>`;
@@ -783,14 +836,17 @@ async function refreshAccountPage() {
 
     const profileEditor = memberPanel.querySelector("[data-profile-editor]");
     if (!profileEditor) {
-      memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><div data-pro-profile-tools hidden><label for="profile-banner-url">Profile banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
+      memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><label for="profile-avatar-file">Upload avatar image</label><input id="profile-avatar-file" data-profile-avatar-file name="avatarFile" type="file" accept="image/*" /><div data-pro-profile-tools hidden><label for="profile-banner-preset">Banner preset</label><select id="profile-banner-preset" data-profile-banner-preset name="bannerPreset">${proBannerPresets.map((preset) => `<option value="${preset.value}">${preset.label}</option>`).join("")}</select><label for="profile-banner-url">Or use a custom banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
     }
+
+    memberPanel.querySelectorAll("[data-account-name]").forEach((name) => updateRoleTag(name, accountRole));
 
     const memberProfileBanner = memberPanel.querySelector("[data-profile-banner]");
     const memberProfileAvatar = memberPanel.querySelector("[data-profile-avatar]");
     const memberUsernameField = memberPanel.querySelector("[data-profile-username]");
     const memberAvatarField = memberPanel.querySelector("[data-profile-avatar-url]");
     const memberBannerField = memberPanel.querySelector("[data-profile-banner-url]");
+    const memberBannerPresetField = memberPanel.querySelector("[data-profile-banner-preset]");
     const memberFontField = memberPanel.querySelector("[data-profile-font]");
     const memberProProfileControls = memberPanel.querySelector("[data-pro-profile-tools]");
 
@@ -802,16 +858,26 @@ async function refreshAccountPage() {
     if (memberBannerField) memberBannerField.value = profile.banner_url || "";
     if (memberFontField) memberFontField.value = profile.preferred_font || "classic";
     if (memberProfileBanner) {
+      const bannerIsPreset = typeof profile.banner_url === "string" && profile.banner_url.startsWith("linear-gradient");
       memberProfileBanner.hidden = !profile.banner_url;
-      memberProfileBanner.style.backgroundImage = profile.banner_url ? `url("${profile.banner_url}")` : "";
+      memberProfileBanner.style.backgroundImage = profile.banner_url ? bannerBackgroundStyle(profile.banner_url) : "";
+      if (memberBannerPresetField) {
+        const matchingPreset = proBannerPresets.find((preset) => preset.value === profile.banner_url);
+        memberBannerPresetField.value = matchingPreset ? matchingPreset.value : proBannerPresets[0].value;
+        if (bannerIsPreset) {
+          memberBannerField.value = "";
+        }
+      }
     }
     if (memberProProfileControls) {
       memberProProfileControls.hidden = !hasPro;
       if (!hasPro) {
         memberBannerField.disabled = true;
+        memberBannerPresetField.disabled = true;
         memberFontField.disabled = true;
       } else {
         memberBannerField.disabled = false;
+        memberBannerPresetField.disabled = false;
         memberFontField.disabled = false;
       }
     }
@@ -931,12 +997,6 @@ function wireAccountControls() {
   app.querySelector("[data-profile-form]")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    const formProfile = {
-      username: form.elements.namedItem("username").value.trim(),
-      avatar_url: form.elements.namedItem("avatarUrl").value.trim(),
-      banner_url: form.elements.namedItem("bannerUrl").value.trim(),
-      preferred_font: form.elements.namedItem("preferredFont").value || "classic"
-    };
     const profileStatus = app.querySelector("[data-profile-message]");
     const { data } = await supabaseClient.auth.getSession();
     const user = data.session?.user;
@@ -944,6 +1004,28 @@ function wireAccountControls() {
       profileStatus.textContent = "Sign in to save a profile.";
       return;
     }
+
+    let avatarUrl = form.elements.namedItem("avatarUrl").value.trim();
+    const avatarFile = form.querySelector("[data-profile-avatar-file]")?.files?.[0];
+    try {
+      if (avatarFile) {
+        profileStatus.textContent = "Uploading your avatar…";
+        avatarUrl = await uploadProfileImage(avatarFile, user) || avatarUrl;
+      }
+    } catch (error) {
+      console.error("Avatar upload failed.", error);
+      profileStatus.textContent = "Could not upload the avatar. Try a smaller image or a valid URL.";
+      return;
+    }
+
+    const bannerPresetValue = form.elements.namedItem("bannerPreset")?.value || "";
+    const bannerUrlInput = form.elements.namedItem("bannerUrl").value.trim();
+    const formProfile = {
+      username: form.elements.namedItem("username").value.trim(),
+      avatar_url: avatarUrl,
+      banner_url: bannerPresetValue && bannerPresetValue.startsWith("linear-gradient") ? bannerPresetValue : (bannerUrlInput || ""),
+      preferred_font: form.elements.namedItem("preferredFont").value || "classic"
+    };
 
     profileStatus.textContent = "Saving your profile…";
     const savedProfile = await saveCurrentProfile(user, formProfile);
@@ -1187,7 +1269,7 @@ async function refreshChatPage() {
   try {
     const { data: profilesData, error: profilesError } = await supabaseClient
       .from("user_profiles")
-      .select("user_id, username, avatar_url, banner_url, preferred_font");
+      .select("user_id, username, avatar_url, banner_url, preferred_font, role");
     if (profilesError) throw profilesError;
 
     const profileMap = new Map((profilesData || []).map((entry) => [entry.user_id, entry]));
@@ -1204,12 +1286,15 @@ async function refreshChatPage() {
     }
 
     stream.innerHTML = messages.map((message) => {
-      const profile = profileMap.get(message.user_id) || { username: "Lounge member", avatar_url: "" };
+      const profile = profileMap.get(message.user_id) || { username: "Lounge member", avatar_url: "", role: "" };
+      const roleValue = profile.role || (message.user_id === user.id ? getAccountRole(user.email).toLowerCase() : "");
       const avatar = profile.avatar_url
         ? `<img src="${profile.avatar_url}" alt="${escapeHtml(profile.username || "Profile picture")}" />`
         : `<span>${escapeHtml(getInitialsName(profile.username || "Lounge member"))}</span>`;
       const timestamp = new Date(message.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      return `<article class="chat-message"><div class="chat-avatar">${avatar}</div><div><div class="chat-meta"><strong>${escapeHtml(profile.username || "Lounge member")}</strong><time>${escapeHtml(timestamp)}</time></div><p>${escapeHtml(message.message)}</p></div></article>`;
+      const roleLabel = roleValue ? `${roleValue.charAt(0).toUpperCase()}${roleValue.slice(1).toLowerCase()}` : "";
+      const role = roleLabel ? `<span class="role-tag role-tag-${escapeHtml(roleLabel.toLowerCase())}">${escapeHtml(roleLabel)}</span>` : "";
+      return `<article class="chat-message"><div class="chat-avatar">${avatar}</div><div><div class="chat-meta"><strong>${escapeHtml(profile.username || "Lounge member")}</strong>${role}<time>${escapeHtml(timestamp)}</time></div><p>${escapeHtml(message.message)}</p></div></article>`;
     }).join("");
   } catch (error) {
     console.error("Could not load chat messages.", error);
