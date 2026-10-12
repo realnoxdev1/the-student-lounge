@@ -13,6 +13,23 @@ update public.video_requests set item = 'Request details unavailable' where item
 alter table public.video_requests alter column name set not null;
 alter table public.video_requests alter column item set not null;
 
+-- Explicit inbox access for Helpers; browser clients can only read their own role.
+create table if not exists public.request_helpers (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  granted_at timestamptz not null default now()
+);
+
+alter table public.request_helpers enable row level security;
+revoke all on table public.request_helpers from anon, authenticated;
+grant select on table public.request_helpers to authenticated;
+
+drop policy if exists "Helpers can read their own assignment" on public.request_helpers;
+create policy "Helpers can read their own assignment"
+  on public.request_helpers
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
 alter table public.video_requests enable row level security;
 
 grant insert on table public.video_requests to anon, authenticated;
@@ -29,13 +46,74 @@ create policy "Anyone can submit a request"
   );
 
 drop policy if exists "Only the owner can view requests" on public.video_requests;
-create policy "Only the owner can view requests"
+drop policy if exists "Owner and helpers can view requests" on public.video_requests;
+create policy "Owner and helpers can view requests"
   on public.video_requests
   for select
   to authenticated
   using (
     lower(coalesce(auth.jwt() ->> 'email', '')) = lower('karaas.botros2@gmail.com')
+    or exists (
+      select 1
+      from public.request_helpers
+      where user_id = auth.uid()
+    )
   );
+
+notify pgrst, 'reload schema';
+
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  username text not null default 'Lounge member' check (char_length(trim(username)) between 1 and 30),
+  avatar_url text,
+  banner_url text,
+  preferred_font text not null default 'classic' check (preferred_font in ('classic', 'lora', 'nunito')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_profiles enable row level security;
+grant select on table public.user_profiles to anon, authenticated;
+grant insert, update, delete on table public.user_profiles to authenticated;
+
+drop policy if exists "Anyone can read profiles" on public.user_profiles;
+create policy "Anyone can read profiles"
+  on public.user_profiles
+  for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Users can manage their own profile" on public.user_profiles;
+create policy "Users can manage their own profile"
+  on public.user_profiles
+  for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create table if not exists public.chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  message text not null check (char_length(trim(message)) between 1 and 280),
+  created_at timestamptz not null default now()
+);
+
+alter table public.chat_messages enable row level security;
+grant select, insert on table public.chat_messages to authenticated;
+
+drop policy if exists "Authenticated users can view chat messages" on public.chat_messages;
+create policy "Authenticated users can view chat messages"
+  on public.chat_messages
+  for select
+  to authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can post chat messages" on public.chat_messages;
+create policy "Authenticated users can post chat messages"
+  on public.chat_messages
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id and char_length(trim(message)) between 1 and 280);
 
 notify pgrst, 'reload schema';
 
@@ -59,11 +137,16 @@ create policy "Users can read their own Pro status"
   to authenticated
   using (auth.uid() = user_id);
 
--- To grant Pro after a helper has created an account, replace the email below
--- and run this separately in the Supabase SQL Editor:
+-- To grant a Helper inbox access AND Pro themes, replace HELPER_EMAIL_HERE
+-- with their registered email, then copy and run both statements in the SQL Editor:
+-- insert into public.request_helpers (user_id)
+-- select id from auth.users where lower(email) = lower('HELPER_EMAIL_HERE')
+-- on conflict (user_id) do nothing;
+--
 -- insert into public.pro_entitlements (user_id, grant_reason)
 -- select id, 'helper' from auth.users where lower(email) = lower('HELPER_EMAIL_HERE')
--- on conflict (user_id) do update set grant_reason = excluded.grant_reason, expires_at = null;
+-- on conflict (user_id) do update
+-- set grant_reason = excluded.grant_reason, expires_at = null;
 
 notify pgrst, 'reload schema';
 

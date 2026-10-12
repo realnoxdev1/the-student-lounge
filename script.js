@@ -50,6 +50,124 @@ const styleOptions = [
   { id: "starlight", label: "Starlight", description: "A deep, polished indigo palette with a warm gold accent.", kind: "palette", value: "starlight", proOnly: true }
 ];
 const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)");
+const profileStorageKey = "student-lounge-profile";
+const chatStorageKey = "student-lounge-chat-fallback";
+const profileFonts = [
+  { value: "classic", label: "Classic" },
+  { value: "lora", label: "Lora" },
+  { value: "nunito", label: "Nunito" }
+];
+
+function getDefaultProfile(user = null) {
+  const baseName = user?.user_metadata?.display_name || user?.email?.split("@")[0] || "Lounge member";
+  return {
+    username: baseName.trim() || "Lounge member",
+    avatar_url: "",
+    banner_url: "",
+    preferred_font: "classic"
+  };
+}
+
+function getLocalProfile() {
+  try {
+    const profile = JSON.parse(localStorage.getItem(profileStorageKey) || "{}");
+    return { ...getDefaultProfile(), ...profile };
+  } catch {
+    return getDefaultProfile();
+  }
+}
+
+function saveLocalProfile(profile) {
+  localStorage.setItem(profileStorageKey, JSON.stringify(profile));
+}
+
+function getInitialsName(name) {
+  return String(name || "LM").trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "LM";
+}
+
+async function loadCurrentProfile(user = null) {
+  if (!user) return getLocalProfile();
+  if (!supabaseClient) return getLocalProfile();
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("user_profiles")
+      .select("username, avatar_url, banner_url, preferred_font")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") throw error;
+    if (!data) return getDefaultProfile(user);
+
+    return {
+      username: data.username || getDefaultProfile(user).username,
+      avatar_url: data.avatar_url || "",
+      banner_url: data.banner_url || "",
+      preferred_font: data.preferred_font || "classic"
+    };
+  } catch (error) {
+    console.warn("Could not load profile details.", error);
+    return getDefaultProfile(user);
+  }
+}
+
+async function saveCurrentProfile(user, profile) {
+  const safeProfile = {
+    username: String(profile.username || "").trim() || getDefaultProfile(user).username,
+    avatar_url: profile.avatar_url || "",
+    banner_url: profile.banner_url || "",
+    preferred_font: profileFonts.some((font) => font.value === profile.preferred_font) ? profile.preferred_font : "classic"
+  };
+
+  if (!user || !supabaseClient) {
+    saveLocalProfile(safeProfile);
+    return safeProfile;
+  }
+
+  try {
+    const { error } = await supabaseClient
+      .from("user_profiles")
+      .upsert({ user_id: user.id, ...safeProfile, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) throw error;
+    await supabaseClient.auth.updateUser({ data: { display_name: safeProfile.username } });
+    saveLocalProfile(safeProfile);
+    return safeProfile;
+  } catch (error) {
+    console.warn("Unable to save profile.", error);
+    saveLocalProfile(safeProfile);
+    return safeProfile;
+  }
+}
+
+function applyProfileTheme(profile = getLocalProfile()) {
+  const fontName = profile.preferred_font && profile.preferred_font !== "classic" ? profile.preferred_font : "classic";
+  document.documentElement.dataset.profileFont = fontName;
+}
+
+function favoritePlaylistMarkup() {
+  const favoriteKeys = getFavoriteSet();
+  const entries = people.flatMap((person) => {
+    const mediaItems = (person.media || []).map(([title, id]) => ({ kind: "video", id, label: title, url: watchUrl(id) }));
+    const gameItems = (person.games || []).map(([title, url]) => ({ kind: "game", id: url, label: title, url }));
+    return [...mediaItems, ...gameItems];
+  }).filter((item) => favoriteKeys.has(`${item.kind}:${item.id}`));
+
+  if (!entries.length) {
+    return '<div class="feature-empty"><p>No favorites yet. Tap the heart on any video or game to build your lounge playlist.</p></div>';
+  }
+
+  return `<ul class="favorite-list">${entries.map((item) => `<li><div><strong>${escapeHtml(item.label)}</strong><br /><small>${item.kind === "video" ? "Video" : "Game"}</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Open ↗</a></li>`).join("")}</ul>`;
+}
+
+function renderFavoritePlaylist() {
+  const panel = app.querySelector("[data-favorite-playlist]");
+  if (!panel) return;
+  panel.innerHTML = favoritePlaylistMarkup();
+}
+
+function chatPage() {
+  return `<section class="page-head"><span class="eyebrow">The lounge</span><h1>Chat.</h1><p>Say hello, swap ideas, or drop a quick update for everyone in the room.</p></section><section class="chat-shell"><div class="chat-panel"><div class="chat-header"><div><span class="eyebrow">Live chat</span><h2>Open room</h2></div><span class="pro-badge">Everyone</span></div><div class="chat-stream" data-chat-stream aria-live="polite"></div><form class="request-form chat-form" data-chat-form><label for="chat-message-input">Your message</label><textarea id="chat-message-input" name="message" maxlength="280" placeholder="Share a quick note with the lounge..." required></textarea><button class="button primary" type="submit">Send message</button><p class="request-form-status" data-chat-status aria-live="polite"></p></form></div></section>`;
+}
 
 function loadPoints() {
   return Number(localStorage.getItem(pointsStorageKey) || 0);
@@ -80,7 +198,7 @@ function privateInboxErrorMessage(error) {
     return "Supabase cannot find public.video_requests in this project. Make sure the table is named video_requests in the public schema, then run all of supabase-setup.sql in this same project’s SQL Editor.";
   }
   if (error?.code === "42501") {
-    return "The table exists, but Supabase is denying the owner read access. Re-run supabase-setup.sql with the owner email matching the signed-in account.";
+    return "The table exists, but Supabase is denying inbox access. Re-run supabase-setup.sql and confirm this account is the owner or has been granted the Helper role.";
   }
   if (error?.code === "PGRST204" || error?.code === "42703") {
     return "The requests table columns do not match the site. It needs id, name, item, and created_at; check the table setup SQL.";
@@ -494,11 +612,11 @@ function hanyPage() {
 }
 
 function requestsPage() {
-  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a video or game.</h1><p>Send a suggestion for the lounge. Your name and suggestion will only be visible in the owner’s private requests inbox.</p></section><section class="request-layout"><div class="form-card"><form class="request-form" data-request-form><label for="request-name">#1 Whats your name?</label><input id="request-name" name="name" type="text" autocomplete="name" maxlength="80" required /><label for="request-item">#2 What is the video or game name you want?</label><input id="request-item" name="item" type="text" maxlength="160" required /><button class="button primary" type="submit">Send request <span aria-hidden="true">↗</span></button><p class="request-form-status" data-request-status aria-live="polite"></p></form></div><aside class="request-note"><span class="eyebrow">A note about requests</span><h2>Help grow the lounge.</h2><p>Submissions are sent to a private inbox. Only the site owner can sign in to view them.</p></aside></section>`;
+  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a video or game.</h1><p>Send a suggestion for the lounge. Your name and suggestion will only be visible to the owner and assigned Helpers in the private requests inbox.</p></section><section class="request-layout"><div class="form-card"><form class="request-form" data-request-form><label for="request-name">#1 Whats your name?</label><input id="request-name" name="name" type="text" autocomplete="name" maxlength="80" required /><label for="request-item">#2 What is the video or game name you want?</label><input id="request-item" name="item" type="text" maxlength="160" required /><button class="button primary" type="submit">Send request <span aria-hidden="true">↗</span></button><p class="request-form-status" data-request-status aria-live="polite"></p></form></div><aside class="request-note"><span class="eyebrow">A note about requests</span><h2>Help grow the lounge.</h2><p>Submissions are sent to a private inbox. Only the site owner and assigned Helpers can sign in to view them.</p></aside></section>`;
 }
 
 function privateRequestsPage() {
-  return `<section class="page-head"><span class="eyebrow">Owner access</span><h1>Private requests.</h1><p>Sign in with the owner account to view the suggestions submitted by visitors.</p></section><section class="admin-requests-panel"><form class="request-form admin-login-form" data-admin-login hidden><label for="admin-email">Owner email</label><input id="admin-email" name="email" type="email" autocomplete="username" required /><label for="admin-password">Password</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button></form><p class="request-form-status admin-status" data-admin-status aria-live="polite">Checking owner access…</p><div data-admin-results hidden></div></section>`;
+  return `<section class="page-head"><span class="eyebrow">Owner &amp; Helper access</span><h1>Private requests.</h1><p>Sign in with the email and password for the owner or an account that has been granted the Helper role.</p></section><section class="admin-requests-panel"><form class="request-form admin-login-form" data-admin-login hidden><label for="admin-email">Email</label><input id="admin-email" name="email" type="email" autocomplete="username" required /><label for="admin-password">Password</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button></form><p class="request-form-status admin-status" data-admin-status aria-live="polite">Checking access…</p><div data-admin-results hidden></div></section>`;
 }
 
 async function refreshPrivateRequests() {
@@ -507,7 +625,7 @@ async function refreshPrivateRequests() {
   const results = app.querySelector("[data-admin-results]");
   if (!loginForm || !status || !results) return;
 
-  if (!supabaseClient || !supabaseConfig.adminEmail) {
+  if (!supabaseClient) {
     status.textContent = "The private inbox needs Supabase project settings. See the setup steps in README.md.";
     return;
   }
@@ -522,19 +640,36 @@ async function refreshPrivateRequests() {
   const session = data.session;
   if (!session) {
     loginForm.hidden = false;
-    status.textContent = "Sign in with the site owner account to view requests.";
+    status.textContent = "Sign in with the owner account or an assigned Helper account to view requests.";
     return;
   }
 
-  if (session.user.email?.toLowerCase() !== supabaseConfig.adminEmail.toLowerCase()) {
-    await supabaseClient.auth.signOut();
+  const isOwner = Boolean(supabaseConfig.adminEmail)
+    && session.user.email?.toLowerCase() === supabaseConfig.adminEmail.toLowerCase();
+  let isHelper = false;
+  if (!isOwner) {
+    const { data: helper, error: helperError } = await supabaseClient
+      .from("request_helpers")
+      .select("user_id")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (helperError) {
+      console.error("Could not verify Helper access.", helperError);
+      loginForm.hidden = false;
+      status.textContent = "Could not verify Helper access. Run the updated supabase-setup.sql, then try again.";
+      return;
+    }
+    isHelper = Boolean(helper);
+  }
+
+  if (!isOwner && !isHelper) {
     loginForm.hidden = false;
-    status.textContent = "This account is not authorized to view the requests.";
+    status.textContent = "This account has not been assigned inbox access. Use the owner account or ask the owner to grant you the Helper role.";
     return;
   }
 
   loginForm.hidden = true;
-  status.textContent = "Owner signed in. Only this account can read the private inbox.";
+  status.textContent = isOwner ? "Owner signed in. The private inbox is ready." : "Helper signed in. The private inbox is ready.";
   const { data: requests, error: requestError } = await supabaseClient
     .from("video_requests")
     .select("id, name, item, created_at")
@@ -585,10 +720,44 @@ async function refreshAccountPage() {
     memberPanel.hidden = !user;
     if (!user) return;
 
-    app.querySelector("[data-account-email]").textContent = user.email || "";
+    const profile = await loadCurrentProfile(user);
     const badge = app.querySelector("[data-pro-badge]");
     const proStatus = app.querySelector("[data-pro-status]");
     const proCard = app.querySelector("[data-pro-status-card]");
+    const profileBanner = app.querySelector("[data-profile-banner]");
+    const profileAvatar = app.querySelector("[data-profile-avatar]");
+    const usernameField = app.querySelector("[data-profile-username]");
+    const avatarField = app.querySelector("[data-profile-avatar-url]");
+    const bannerField = app.querySelector("[data-profile-banner-url]");
+    const fontField = app.querySelector("[data-profile-font]");
+    const proProfileControls = app.querySelector("[data-pro-profile-tools]");
+
+    app.querySelector("[data-account-email]").textContent = user.email || "";
+    app.querySelector("[data-account-name]").textContent = profile.username || "Lounge member";
+    const initials = getInitialsName(profile.username || user.email || "Lounge member");
+    if (profileAvatar) {
+      profileAvatar.innerHTML = profile.avatar_url ? `<img src="${profile.avatar_url}" alt="${escapeHtml(profile.username || "Profile picture")}" />` : `<span>${escapeHtml(initials)}</span>`;
+    }
+    if (usernameField) usernameField.value = profile.username || "";
+    if (avatarField) avatarField.value = profile.avatar_url || "";
+    if (bannerField) bannerField.value = profile.banner_url || "";
+    if (fontField) fontField.value = profile.preferred_font || "classic";
+    if (profileBanner) {
+      profileBanner.hidden = !profile.banner_url;
+      profileBanner.style.backgroundImage = profile.banner_url ? `url("${profile.banner_url}")` : "";
+    }
+    if (proProfileControls) {
+      const hasPro = await checkActiveProMembership();
+      proProfileControls.hidden = !hasPro;
+      if (!hasPro) {
+        bannerField.disabled = true;
+        fontField.disabled = true;
+      } else {
+        bannerField.disabled = false;
+        fontField.disabled = false;
+      }
+    }
+
     const { data: entitlement, error: entitlementError } = await supabaseClient
       .from("pro_entitlements")
       .select("expires_at")
@@ -604,14 +773,49 @@ async function refreshAccountPage() {
 
     const expiry = entitlement?.expires_at ? new Date(entitlement.expires_at) : null;
     const hasPro = Boolean(entitlement && (!expiry || expiry > new Date()));
-    app.querySelector("[data-account-name]").textContent = hasPro
-      ? "Lounge Pro Member"
-      : user.user_metadata?.display_name || "Lounge member";
     badge.textContent = hasPro ? "Pro member" : "Lounge member";
     proCard.classList.toggle("is-pro", hasPro);
     proStatus.textContent = hasPro
-      ? expiry ? `Pro is active until ${expiry.toLocaleDateString()}. It is linked to this account.` : "Pro is active on this account. Sign in with this account on another device to keep your membership." 
+      ? expiry ? `Pro is active until ${expiry.toLocaleDateString()}. It is linked to this account.` : "Pro is active on this account. Sign in with this account on another device to keep your membership."
       : "No Pro membership is linked to this account yet. When the helper program opens, Pro access can be granted to this account.";
+
+    applyProfileTheme(profile);
+
+    const profileEditor = memberPanel.querySelector("[data-profile-editor]");
+    if (!profileEditor) {
+      memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><div data-pro-profile-tools hidden><label for="profile-banner-url">Profile banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
+    }
+
+    const memberProfileBanner = memberPanel.querySelector("[data-profile-banner]");
+    const memberProfileAvatar = memberPanel.querySelector("[data-profile-avatar]");
+    const memberUsernameField = memberPanel.querySelector("[data-profile-username]");
+    const memberAvatarField = memberPanel.querySelector("[data-profile-avatar-url]");
+    const memberBannerField = memberPanel.querySelector("[data-profile-banner-url]");
+    const memberFontField = memberPanel.querySelector("[data-profile-font]");
+    const memberProProfileControls = memberPanel.querySelector("[data-pro-profile-tools]");
+
+    if (memberProfileAvatar) {
+      memberProfileAvatar.innerHTML = profile.avatar_url ? `<img src="${profile.avatar_url}" alt="${escapeHtml(profile.username || "Profile picture")}" />` : `<span>${escapeHtml(initials)}</span>`;
+    }
+    if (memberUsernameField) memberUsernameField.value = profile.username || "";
+    if (memberAvatarField) memberAvatarField.value = profile.avatar_url || "";
+    if (memberBannerField) memberBannerField.value = profile.banner_url || "";
+    if (memberFontField) memberFontField.value = profile.preferred_font || "classic";
+    if (memberProfileBanner) {
+      memberProfileBanner.hidden = !profile.banner_url;
+      memberProfileBanner.style.backgroundImage = profile.banner_url ? `url("${profile.banner_url}")` : "";
+    }
+    if (memberProProfileControls) {
+      memberProProfileControls.hidden = !hasPro;
+      if (!hasPro) {
+        memberBannerField.disabled = true;
+        memberFontField.disabled = true;
+      } else {
+        memberBannerField.disabled = false;
+        memberFontField.disabled = false;
+      }
+    }
+    renderFavoritePlaylist();
   } catch (error) {
     console.error("Could not load account details.", error);
     message.textContent = "Could not check your account right now. Check your connection and reload.";
@@ -724,6 +928,34 @@ function wireAccountControls() {
     }
   });
 
+  app.querySelector("[data-profile-form]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formProfile = {
+      username: form.elements.namedItem("username").value.trim(),
+      avatar_url: form.elements.namedItem("avatarUrl").value.trim(),
+      banner_url: form.elements.namedItem("bannerUrl").value.trim(),
+      preferred_font: form.elements.namedItem("preferredFont").value || "classic"
+    };
+    const profileStatus = app.querySelector("[data-profile-message]");
+    const { data } = await supabaseClient.auth.getSession();
+    const user = data.session?.user;
+    if (!user) {
+      profileStatus.textContent = "Sign in to save a profile.";
+      return;
+    }
+
+    profileStatus.textContent = "Saving your profile…";
+    const savedProfile = await saveCurrentProfile(user, formProfile);
+    profileStatus.textContent = "Profile saved.";
+    applyProfileTheme(savedProfile);
+    await refreshAccountPage();
+  });
+
+  app.querySelector("[data-open-chat]")?.addEventListener("click", () => {
+    window.location.hash = "chat";
+  });
+
   app.querySelector("[data-account-sign-out]")?.addEventListener("click", async () => {
     const button = app.querySelector("[data-account-sign-out]");
     button.disabled = true;
@@ -791,8 +1023,8 @@ function wirePageControls(route) {
       const email = loginForm.elements.namedItem("email").value.trim();
       const password = loginForm.elements.namedItem("password").value;
       const status = app.querySelector("[data-admin-status]");
-      if (!supabaseClient || email.toLowerCase() !== supabaseConfig.adminEmail?.toLowerCase()) {
-        status.textContent = "That email is not authorized for the private inbox.";
+      if (!supabaseClient) {
+        status.textContent = "The private inbox needs Supabase project settings.";
         return;
       }
 
@@ -802,7 +1034,7 @@ function wirePageControls(route) {
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
       button.disabled = false;
       if (error) {
-        status.textContent = "Sign-in failed. Check the owner email and password.";
+        status.textContent = "Sign-in failed. Check the email and password, then try again.";
         return;
       }
 
@@ -930,14 +1162,112 @@ function wirePageControls(route) {
   }
 }
 
-function render() {
+async function refreshChatPage() {
+  const stream = app.querySelector("[data-chat-stream]");
+  const status = app.querySelector("[data-chat-status]");
+  const form = app.querySelector("[data-chat-form]");
+  if (!stream || !form) return;
+
+  if (!supabaseClient) {
+    stream.innerHTML = '<div class="feature-empty"><p>Chat is not connected yet. Add the Supabase project URL and anon key to get this working.</p></div>';
+    form.hidden = true;
+    return;
+  }
+
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+  const user = sessionData?.session?.user;
+  if (sessionError || !user) {
+    stream.innerHTML = '<div class="feature-empty"><p>Sign in to join the lounge chat.</p></div>';
+    form.hidden = true;
+    if (status) status.textContent = "Sign in to join the chat.";
+    return;
+  }
+
+  form.hidden = false;
+  try {
+    const { data: profilesData, error: profilesError } = await supabaseClient
+      .from("user_profiles")
+      .select("user_id, username, avatar_url, banner_url, preferred_font");
+    if (profilesError) throw profilesError;
+
+    const profileMap = new Map((profilesData || []).map((entry) => [entry.user_id, entry]));
+    const { data: messages, error: messagesError } = await supabaseClient
+      .from("chat_messages")
+      .select("id, user_id, message, created_at")
+      .order("created_at", { ascending: true })
+      .limit(80);
+    if (messagesError) throw messagesError;
+
+    if (!messages?.length) {
+      stream.innerHTML = '<div class="feature-empty"><p>No messages yet. Start the conversation.</p></div>';
+      return;
+    }
+
+    stream.innerHTML = messages.map((message) => {
+      const profile = profileMap.get(message.user_id) || { username: "Lounge member", avatar_url: "" };
+      const avatar = profile.avatar_url
+        ? `<img src="${profile.avatar_url}" alt="${escapeHtml(profile.username || "Profile picture")}" />`
+        : `<span>${escapeHtml(getInitialsName(profile.username || "Lounge member"))}</span>`;
+      const timestamp = new Date(message.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return `<article class="chat-message"><div class="chat-avatar">${avatar}</div><div><div class="chat-meta"><strong>${escapeHtml(profile.username || "Lounge member")}</strong><time>${escapeHtml(timestamp)}</time></div><p>${escapeHtml(message.message)}</p></div></article>`;
+    }).join("");
+  } catch (error) {
+    console.error("Could not load chat messages.", error);
+    stream.innerHTML = '<div class="feature-empty"><p>Chat is connected but the messages table is not ready yet. Run the SQL setup again.</p></div>';
+    if (status) status.textContent = "Chat could not load.";
+  }
+}
+
+function wireChatControls() {
+  const form = app.querySelector("[data-chat-form]");
+  if (!form) return;
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const status = app.querySelector("[data-chat-status]");
+    const messageInput = form.elements.namedItem("message");
+    const messageText = messageInput.value.trim();
+    if (!supabaseClient || !messageText) {
+      if (status) status.textContent = "Type a message before sending.";
+      return;
+    }
+
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const user = sessionData?.session?.user;
+    if (!user) {
+      if (status) status.textContent = "Sign in to send a message.";
+      return;
+    }
+
+    if (status) status.textContent = "Sending…";
+    const { error } = await supabaseClient.from("chat_messages").insert({ user_id: user.id, message: messageText });
+    if (error) {
+      console.error("Could not send chat message.", error);
+      if (status) status.textContent = "The chat table is not ready yet. Run the updated SQL setup.";
+      return;
+    }
+
+    form.reset();
+    if (status) status.textContent = "Message sent.";
+    await refreshChatPage();
+  });
+}
+
+async function render() {
   const route = window.location.hash.slice(1) || "home";
   const person = people.find((entry) => entry.slug === route);
   const pageRoute = route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
-  if (pageRoute === "home") mountDailyPoll();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "chat" ? chatPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
+  if (pageRoute === "home") {
+    mountDailyPoll();
+    const hasPro = await checkActiveProMembership();
+    if (hasPro) {
+      const rewardPanel = app.querySelector(".reward-panel");
+      if (rewardPanel) rewardPanel.remove();
+    }
+  }
   if (pageRoute === "settings") mountCustomizations();
-  document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === (person || pageRoute === "people" ? "people" : route)));
+  document.querySelectorAll("[data-nav]").forEach((link) => link.classList.toggle("active", link.dataset.nav === route));
   const pointsDisplay = document.querySelector("[data-points-total]");
   if (pointsDisplay) pointsDisplay.textContent = String(loadPoints());
   updateRewardButtonState();
@@ -946,6 +1276,10 @@ function render() {
   if (pageRoute === "account") {
     wireAccountControls();
     refreshAccountPage();
+  }
+  if (pageRoute === "chat") {
+    wireChatControls();
+    refreshChatPage();
   }
   attachRewardListeners();
   attachEconomyListeners();

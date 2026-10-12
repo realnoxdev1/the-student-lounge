@@ -18,6 +18,8 @@
 :root[data-theme="dark"][data-skin="sunset"] { --blue: #ffad8e; --blue-soft: #472c25; }
 :root[data-typeface="lora"] { --font-display: "Lora", Georgia, serif; }
 :root[data-typeface="nunito"] { --font-body: "Nunito", sans-serif; --font-display: "Nunito", sans-serif; }
+:root[data-profile-font="lora"] { --font-body: "Lora", Georgia, serif; --font-display: "Lora", Georgia, serif; }
+:root[data-profile-font="nunito"] { --font-body: "Nunito", sans-serif; --font-display: "Nunito", sans-serif; }
 
 :root[data-theme="dark"] {
   --ink: #f4f1eb;
@@ -186,11 +188,32 @@ h1 em { color: var(--blue); font-style: normal; }
 .account-switch button { padding: 0; border: 0; color: var(--blue); background: none; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .account-identity { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; }
 .account-email { overflow-wrap: anywhere; margin: 0; }
+.account-avatar { display: inline-flex; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--blue-soft); align-items: center; justify-content: center; color: var(--blue); font-weight: 800; border: 1px solid var(--line); }
+.account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-banner { height: 120px; margin-bottom: 18px; border-radius: 18px; border: 1px solid var(--line); background-size: cover; background-position: center; background-repeat: no-repeat; }
 .pro-status-card { margin-top: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
 .pro-status-card.is-pro { border-color: color-mix(in srgb, var(--blue) 45%, var(--line)); background: var(--blue-soft); }
 .pro-status-card p:last-child { margin-bottom: 0; }
 .pro-badge { display: inline-flex; padding: 6px 9px; border-radius: 999px; color: var(--blue); background: var(--blue-soft); font-size: .65rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .account-message { min-height: 1.4em; margin: 10px 0 0; color: var(--blue); font-size: .82rem; }
+.favorite-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.favorite-list li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); }
+.favorite-list a { color: var(--blue); font-weight: 700; }
+.favorite-list small { color: var(--muted); }
+.chat-shell { margin: 0 0 90px; }
+.chat-panel { border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+.chat-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+.chat-stream { display: grid; gap: 12px; min-height: 220px; max-height: 520px; overflow-y: auto; padding: 20px 22px; background: linear-gradient(180deg, rgba(38,121,232,.04), transparent 38%); }
+.chat-message { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+.chat-avatar { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: var(--blue-soft); display: grid; place-items: center; color: var(--blue); font-size: .78rem; font-weight: 800; }
+.chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.chat-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px; }
+.chat-meta strong { font-size: .8rem; }
+.chat-meta time { color: var(--muted); font-size: .68rem; }
+.chat-message p { margin: 0; color: var(--ink); line-height: 1.55; }
+.chat-form { border-top: 1px solid var(--line); padding: 20px 22px; }
+.chat-form textarea { width: 100%; min-height: 92px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font: inherit; }
+.chat-form textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
 .settings-panel { display: flex; justify-content: space-between; gap: 30px; align-items: center; margin: 10px 0 110px; padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); box-shadow: var(--shadow); }
 .settings-panel h2 { margin: 8px 0 5px; font-family: var(--font-display); font-size: 2.2rem; font-weight: 500; letter-spacing: -.05em; }
 .settings-panel p { max-width: 430px; margin: 0; color: var(--muted); line-height: 1.55; }
@@ -551,9 +574,9 @@ a:focus-visible, button:focus-visible { outline: 3px solid color-mix(in srgb, va
   .brand img { width: 38px; height: 38px; border-radius: 12px; }
   .brand strong { font-size: .76rem; }
   .brand small { font-size: .45rem; }
-  .main-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); display: grid; gap: 2px; padding: 4px; border-radius: 13px; font-size: .61rem; }
+  .main-nav { grid-template-columns: repeat(7, minmax(0, 1fr)); display: grid; gap: 2px; padding: 4px; border-radius: 13px; font-size: .61rem; }
   .main-nav a { display: flex; justify-content: center; padding: 9px 4px; border-radius: 9px; white-space: nowrap; }
-  .main-nav .nav-request { padding-inline: 3px; }
+  .main-nav .nav-request { grid-column: span 2; padding-inline: 3px; }
   .points-chip { gap: 5px; padding: 7px 9px; font-size: .63rem; }
   .hero { min-height: initial; grid-template-columns: 1fr; gap: 14px; margin: 18px 0 16px; padding: 34px 25px 28px; border-radius: 26px; }
   .hero h1 { max-width: 500px; margin: 18px 0 13px; font-size: clamp(3rem, 13vw, 4.6rem); }
