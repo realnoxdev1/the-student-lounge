@@ -39,12 +39,22 @@ const rewardAdVideoIds = ["QVWpiMdiiw4", "KUDhMV0Fpno"];
 const rewardAdReward = 50;
 let rewardAdCloseTimeout;
 const dailyPollReward = 20;
+const pollRewardCooldownMs = 24 * 60 * 60 * 1000;
 const dailyPolls = [
-  { question: "What helps you reset between classes?", choices: ["A favorite song", "A short walk", "A quick game", "A quiet moment"] },
-  { question: "Pick your ideal short break.", choices: ["Stretch a little", "Listen to music", "Get some fresh air", "Chat with a friend"] },
-  { question: "What should the lounge feel like today?", choices: ["Calm and cozy", "Bright and upbeat", "Quiet and focused", "Playful and fun"] },
-  { question: "Choose a low-key after-school plan.", choices: ["Watch something", "Play a game", "Make something", "Take it easy"] },
-  { question: "Which small win makes your day better?", choices: ["Finishing a task", "Learning something new", "Helping someone", "Taking a good break"] }
+  { question: "What ice cream flavor are you picking?", choices: ["🍦 Vanilla", "🍫 Chocolate", "🍓 Strawberry", "🍪 Cookies & cream"] },
+  { question: "Choose your perfect day outside.", choices: ["🏖️ Beach day", "🌲 Forest adventure", "🚲 Bike ride", "🧺 Picnic in the park"] },
+  { question: "Which game are you playing first?", choices: ["🏎️ Racing", "🧱 Building", "⚽ Sports", "🗺️ Adventure"] },
+  { question: "Pick a dream snack for movie night.", choices: ["🍿 Popcorn", "🍕 Pizza", "🍬 Candy", "🧀 Nachos"] },
+  { question: "What would you rather do on a sunny afternoon?", choices: ["🛹 Skate around", "🏀 Shoot hoops", "💦 Find a pool", "🐕 Explore with a pet"] },
+  { question: "Choose your ultimate game power-up.", choices: ["⏱️ Slow down time", "🪽 Double jump", "🛡️ Invincibility", "🪙 Unlimited coins"] },
+  { question: "Which sweet treat wins every time?", choices: ["🧁 Cupcakes", "🍩 Donuts", "🍰 Cake", "🍪 Fresh cookies"] },
+  { question: "Pick a mini outdoor adventure.", choices: ["🧭 Go geocaching", "🪁 Fly a kite", "🌅 Watch the sunset", "🪨 Find cool rocks"] },
+  { question: "What kind of game night sounds best?", choices: ["🎮 Video games", "🃏 Card games", "🎲 Board games", "🧩 Puzzles"] },
+  { question: "Build your ideal burger: what’s the must-have?", choices: ["🧀 Extra cheese", "🥓 Crispy bacon", "🥑 Avocado", "🍟 A mountain of fries"] },
+  { question: "Pick a weekend getaway.", choices: ["🏕️ Camping", "🏙️ Big city", "🏝️ Island", "🎢 Theme park"] },
+  { question: "Which fictional pet are you taking home?", choices: ["🐉 Tiny dragon", "🦊 Magical fox", "🐢 Talking turtle", "🐈 Cat with superpowers"] },
+  { question: "Choose your perfect way to cool off.", choices: ["🍧 Shaved ice", "🍉 Cold watermelon", "🏊 A swim", "🧋 Iced boba"] },
+  { question: "You found a free afternoon—what’s the move?", choices: ["🛝 Hang at the park", "🎮 Start a new game", "🛍️ Explore somewhere new", "🛋️ Maximum chill"] }
 ];
 const styleOptions = [
   { id: "sage", label: "Garden", description: "A calm sage-green accent palette.", kind: "palette", value: "sage", cost: 80 },
@@ -290,25 +300,59 @@ function todaysPoll() {
   return dailyPolls[dayNumber % dailyPolls.length];
 }
 
-function todaysPollRecord() {
+function dailyPollRecord() {
   try {
     const record = JSON.parse(localStorage.getItem(dailyPollStorageKey) || "null");
-    return record?.date === todayKey() ? record : null;
+    if (!record || typeof record !== "object") return null;
+
+    if (record.date && !record.answerDate) {
+      const migratedRecord = {
+        answerDate: record.date,
+        choice: record.choice,
+        rewardedAt: Date.now()
+      };
+      localStorage.setItem(dailyPollStorageKey, JSON.stringify(migratedRecord));
+      return migratedRecord;
+    }
+
+    return record;
   } catch {
     return null;
   }
 }
 
-function dailyPollMarkup() {
+function todaysPollRecord() {
+  const record = dailyPollRecord();
+  return record?.answerDate === todayKey() ? record : null;
+}
+
+function pollRewardCooldownRemaining(record = dailyPollRecord(), now = Date.now()) {
+  if (!Number.isFinite(record?.rewardedAt)) return 0;
+  return Math.max(0, pollRewardCooldownMs - (now - record.rewardedAt));
+}
+
+function pollCooldownLabel(milliseconds) {
+  const totalMinutes = Math.ceil(milliseconds / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+function dailyPollMarkup(statusOverride = "") {
   const poll = todaysPoll();
   const record = todaysPollRecord();
+  const cooldown = pollRewardCooldownRemaining();
   const choices = poll.choices.map((choice, index) => {
     const selected = record?.choice === index;
-    return `<button class="poll-choice ${selected ? "is-selected" : ""}" type="button" data-poll-vote="${index}" ${record ? "disabled" : ""} aria-pressed="${selected}">${choice}</button>`;
+    return `<button class="poll-choice ${selected ? "is-selected" : ""}" type="button" data-poll-vote="${index}" aria-pressed="${selected}">${escapeHtml(choice)}</button>`;
   }).join("");
-  const status = record
-    ? `You earned ${dailyPollReward} points. Your answer is saved on this device.`
-    : `Choose an answer to earn ${dailyPollReward} points. One vote per day.`;
+  const status = statusOverride || (record
+    ? cooldown
+      ? `Your answer: ${poll.choices[record.choice]}. Change it anytime. Points available again in ${pollCooldownLabel(cooldown)}.`
+      : `Your answer: ${poll.choices[record.choice]}. Change it or choose again to earn ${dailyPollReward} points.`
+    : cooldown
+      ? `Pick an answer or change it anytime. You can earn points again in ${pollCooldownLabel(cooldown)}.`
+      : `Pick an answer and earn ${dailyPollReward} points. You can change your answer anytime.`);
 
   return `<section class="daily-poll-panel" aria-labelledby="daily-poll-title"><div class="daily-poll-copy"><span class="eyebrow">A little question for today</span><h2 id="daily-poll-title">${poll.question}</h2><p data-poll-status aria-live="polite">${status}</p></div><div class="poll-choices" role="group" aria-label="Poll answers">${choices}</div></section>`;
 }
@@ -320,14 +364,26 @@ function mountDailyPoll() {
 }
 
 function handlePollVote(choiceIndex) {
-  if (todaysPollRecord()) return;
   const poll = todaysPoll();
   if (!Number.isInteger(choiceIndex) || choiceIndex < 0 || choiceIndex >= poll.choices.length) return;
 
-  localStorage.setItem(dailyPollStorageKey, JSON.stringify({ date: todayKey(), choice: choiceIndex }));
-  savePoints(loadPoints() + dailyPollReward);
+  const currentRecord = dailyPollRecord();
+  const now = Date.now();
+  const cooldown = pollRewardCooldownRemaining(currentRecord, now);
+  const earnedReward = cooldown === 0;
+  const record = {
+    answerDate: todayKey(),
+    choice: choiceIndex,
+    rewardedAt: earnedReward ? now : currentRecord?.rewardedAt || null
+  };
+  localStorage.setItem(dailyPollStorageKey, JSON.stringify(record));
+  if (earnedReward) savePoints(loadPoints() + dailyPollReward);
+
+  const status = earnedReward
+    ? `Answer saved! You earned ${dailyPollReward} points. You can change your answer anytime.`
+    : `Answer updated! You can change it anytime. Points available again in ${pollCooldownLabel(cooldown)}.`;
   const panel = app.querySelector(".daily-poll-panel");
-  if (panel) panel.outerHTML = dailyPollMarkup();
+  if (panel) panel.outerHTML = dailyPollMarkup(status);
 }
 
 function loadUnlockedStyles() {
@@ -831,7 +887,7 @@ async function refreshAccountPage() {
 
     const profileEditor = memberPanel.querySelector("[data-profile-editor]");
     if (!profileEditor) {
-      memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><label for="profile-avatar-file">Upload avatar image</label><input id="profile-avatar-file" data-profile-avatar-file name="avatarFile" type="file" accept="image/*" /><div data-pro-profile-tools hidden><label for="profile-banner-preset">Banner preset</label><select id="profile-banner-preset" data-profile-banner-preset name="bannerPreset">${proBannerPresets.map((preset) => `<option value="${preset.value}">${preset.label}</option>`).join("")}</select><label for="profile-banner-url">Or use a custom banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
+      memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><label for="profile-avatar-file">Upload avatar image</label><input id="profile-avatar-file" data-profile-avatar-file name="avatarFile" type="file" accept="image/*" /><div data-pro-profile-tools hidden><label for="profile-banner-preset">Banner preset</label><select id="profile-banner-preset" data-profile-banner-preset name="bannerPreset">${proBannerPresets.map((preset) => `<option value="${preset.value}">${preset.label}</option>`).join("")}</select><label for="profile-banner-url">Or use a custom banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-banner-file">Or upload a banner image</label><input id="profile-banner-file" data-profile-banner-file name="bannerFile" type="file" accept="image/*" /><p class="profile-upload-hint">Upload a JPEG, PNG, GIF, WebP, or AVIF image up to 5 MB.</p><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
     }
 
     const editor = memberPanel.querySelector("[data-profile-editor]");
@@ -1002,18 +1058,27 @@ function wireAccountControls() {
       await handleProfileFormSubmit(event.target);
     });
     app.addEventListener("change", (event) => {
-      if (!event.target.matches("[data-profile-avatar-file]")) return;
+      if (!event.target.matches("[data-profile-avatar-file], [data-profile-banner-file]")) return;
       const form = event.target.form;
       const imageFile = event.target.files?.[0];
       if (!form || !imageFile) return;
 
-      if (form.dataset.avatarPreviewUrl) URL.revokeObjectURL(form.dataset.avatarPreviewUrl);
+      const isBanner = event.target.matches("[data-profile-banner-file]");
+      const previewKey = isBanner ? "bannerPreviewUrl" : "avatarPreviewUrl";
+      if (form.dataset[previewKey]) URL.revokeObjectURL(form.dataset[previewKey]);
       const previewUrl = URL.createObjectURL(imageFile);
-      form.dataset.avatarPreviewUrl = previewUrl;
-      const avatar = form.closest("[data-profile-editor]")?.querySelector("[data-profile-avatar]");
-      if (avatar) avatar.innerHTML = `<img src="${previewUrl}" alt="Selected profile picture preview" />`;
+      form.dataset[previewKey] = previewUrl;
+      const editor = form.closest("[data-profile-editor]");
+      const avatar = editor?.querySelector("[data-profile-avatar]");
+      const banner = editor?.querySelector("[data-profile-banner]");
+      if (isBanner && banner) {
+        banner.hidden = false;
+        banner.style.backgroundImage = `url("${previewUrl}")`;
+      } else if (!isBanner && avatar) {
+        avatar.innerHTML = `<img src="${previewUrl}" alt="Selected profile picture preview" />`;
+      }
       const profileStatus = form.querySelector("[data-profile-message]");
-      if (profileStatus) profileStatus.textContent = "Avatar preview ready. Save your profile to upload it.";
+      if (profileStatus) profileStatus.textContent = `${isBanner ? "Banner" : "Avatar"} preview ready. Save your profile to upload it.`;
     });
     app.dataset.profileFormEventsBound = "true";
   }
@@ -1063,11 +1128,17 @@ async function handleProfileFormSubmit(form) {
     const hasPro = await checkActiveProMembership();
     const bannerPresetValue = form.elements.namedItem("bannerPreset")?.value || "";
     const bannerUrlInput = form.elements.namedItem("bannerUrl")?.value.trim() || "";
+    const bannerFile = hasPro ? form.querySelector("[data-profile-banner-file]")?.files?.[0] : null;
+    let uploadedBannerUrl = "";
+    if (bannerFile) {
+      profileStatus.textContent = "Uploading your banner…";
+      uploadedBannerUrl = await uploadProfileImage(bannerFile, user);
+    }
     const formProfile = {
       username: form.elements.namedItem("username").value.trim(),
       avatar_url: avatarUrl,
       banner_url: hasPro
-        ? (bannerUrlInput || bannerPresetValue || "")
+        ? (uploadedBannerUrl || bannerUrlInput || bannerPresetValue || "")
         : (currentProfile?.banner_url || ""),
       preferred_font: hasPro
         ? (form.elements.namedItem("preferredFont").value || "classic")
@@ -1076,17 +1147,20 @@ async function handleProfileFormSubmit(form) {
 
     profileStatus.textContent = "Saving your profile…";
     const savedProfile = await saveCurrentProfile(user, formProfile);
-    if (form.dataset.avatarPreviewUrl) URL.revokeObjectURL(form.dataset.avatarPreviewUrl);
-    delete form.dataset.avatarPreviewUrl;
+    ["avatarPreviewUrl", "bannerPreviewUrl"].forEach((previewKey) => {
+      if (form.dataset[previewKey]) URL.revokeObjectURL(form.dataset[previewKey]);
+      delete form.dataset[previewKey];
+    });
     form.querySelector("[data-profile-avatar-file]").value = "";
+    form.querySelector("[data-profile-banner-file]").value = "";
     applyProfileTheme(savedProfile);
     await refreshAccountPage();
     const refreshedStatus = app.querySelector("[data-profile-message]");
     if (refreshedStatus) refreshedStatus.textContent = "Profile saved successfully.";
   } catch (error) {
     console.error("Could not save profile.", error);
-    profileStatus.textContent = error.message?.includes("StorageApiError") || error.statusCode
-      ? "Avatar upload failed. Confirm the avatars bucket and storage policies are set up, then try again."
+    profileStatus.textContent = error.statusCode || error.name === "StorageApiError"
+      ? "Image upload failed. Confirm the avatars bucket and user-folder storage policies are set up, then try again."
       : `Profile could not be saved: ${error.message || "check the Supabase setup and try again."}`;
   } finally {
     submitButton.disabled = false;

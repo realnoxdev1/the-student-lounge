@@ -198,6 +198,8 @@ h1 em { color: var(--blue); font-style: normal; }
 .profile-editor .request-form { max-width: none; margin: 0; padding: 16px 0 0; border-top: 1px solid var(--line); }
 .profile-editor .request-form input[type="file"] { min-height: auto; padding: 10px; border-style: dashed; background: var(--card); cursor: pointer; }
 .profile-editor .request-form input[type="file"]::file-selector-button { margin-right: 12px; padding: 9px 12px; border: 0; border-radius: 999px; color: var(--ink); background: var(--blue-soft); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.profile-editor .profile-upload-hint { margin: -5px 0 2px; color: var(--muted); font-size: .72rem; }
+.profile-editor .profile-banner:not([hidden]) { transition: background-image .2s ease; }
 .profile-editor .feature-section { margin-top: 24px; }
 .account-switch { margin: 8px 0 0; font-size: .86rem; }
 .account-switch button { padding: 0; border: 0; color: var(--blue); background: none; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
