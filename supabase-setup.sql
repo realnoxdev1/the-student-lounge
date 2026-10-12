@@ -13,7 +13,7 @@ update public.video_requests set item = 'Request details unavailable' where item
 alter table public.video_requests alter column name set not null;
 alter table public.video_requests alter column item set not null;
 
--- Explicit inbox access for Helpers; browser clients can only read their own role.
+-- Optional Helper assignments; each signed-in user can only read their own assignment.
 create table if not exists public.request_helpers (
   user_id uuid primary key references auth.users(id) on delete cascade,
   granted_at timestamptz not null default now()
@@ -47,16 +47,31 @@ create policy "Anyone can submit a request"
 
 drop policy if exists "Only the owner can view requests" on public.video_requests;
 drop policy if exists "Owner and helpers can view requests" on public.video_requests;
-create policy "Owner and helpers can view requests"
+drop policy if exists "Developer emails can view requests" on public.video_requests;
+do $$
+declare
+  existing_policy record;
+begin
+  for existing_policy in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'video_requests'
+      and cmd = 'SELECT'
+  loop
+    execute format('drop policy %I on public.video_requests', existing_policy.policyname);
+  end loop;
+end;
+$$;
+
+create policy "Developer emails can view requests"
   on public.video_requests
   for select
   to authenticated
   using (
-    lower(coalesce(auth.jwt() ->> 'email', '')) = lower('karaas.botros2@gmail.com')
-    or exists (
-      select 1
-      from public.request_helpers
-      where user_id = auth.uid()
+    lower(coalesce(auth.jwt() ->> 'email', '')) in (
+      'kbotros2027@staschool.us',
+      'karaas.botros2@gmail.com'
     )
   );
 
@@ -241,12 +256,8 @@ create policy "Users can read their own Pro status"
   to authenticated
   using (auth.uid() = user_id);
 
--- To grant a Helper inbox access AND Pro themes, replace HELPER_EMAIL_HERE
--- with their registered email, then copy and run both statements in the SQL Editor:
--- insert into public.request_helpers (user_id)
--- select id from auth.users where lower(email) = lower('HELPER_EMAIL_HERE')
--- on conflict (user_id) do nothing;
---
+-- To grant a Helper Pro themes, replace HELPER_EMAIL_HERE
+-- with their registered email, then run this statement in the SQL Editor.
 -- insert into public.pro_entitlements (user_id, grant_reason)
 -- select id, 'helper' from auth.users where lower(email) = lower('HELPER_EMAIL_HERE')
 -- on conflict (user_id) do update

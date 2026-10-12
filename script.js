@@ -17,6 +17,11 @@ const supabaseClient = window.supabase && supabaseConfig.url && supabaseConfig.a
   : null;
 const googleOAuthReturnKey = "student-lounge-google-oauth-return";
 supabaseClient?.auth.onAuthStateChange((event, session) => {
+  setInboxNavigation(session?.user || null);
+  if (event === "SIGNED_OUT" && window.location.hash === "#requests") {
+    window.location.hash = "account";
+    return;
+  }
   if (event !== "SIGNED_IN" || !session || sessionStorage.getItem(googleOAuthReturnKey) !== "true") return;
   sessionStorage.removeItem(googleOAuthReturnKey);
   if (window.location.hash !== "#account") window.location.hash = "account";
@@ -74,6 +79,11 @@ function getAccountRole(email = "") {
   if (["kbotros2027@staschool.us", "karaas.botros2@gmail.com"].includes(normalizedEmail)) return "Developer";
   if (normalizedEmail === "aluckay2027@staschool.us") return "Helper";
   return "";
+}
+
+function setInboxNavigation(user) {
+  const inboxLink = document.querySelector('[data-nav="requests"]');
+  if (inboxLink) inboxLink.hidden = !getAccountRole(user?.email);
 }
 
 function updateRoleTag(target, role) {
@@ -663,18 +673,17 @@ function hanyPage() {
 }
 
 function requestsPage() {
-  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a video or game.</h1><p>Send a suggestion for the lounge. Your name and suggestion will only be visible to the owner and assigned Helpers in the private requests inbox.</p></section><section class="request-layout"><div class="form-card"><form class="request-form" data-request-form><label for="request-name">#1 Whats your name?</label><input id="request-name" name="name" type="text" autocomplete="name" maxlength="80" required /><label for="request-item">#2 What is the video or game name you want?</label><input id="request-item" name="item" type="text" maxlength="160" required /><button class="button primary" type="submit">Send request <span aria-hidden="true">↗</span></button><p class="request-form-status" data-request-status aria-live="polite"></p></form></div><aside class="request-note"><span class="eyebrow">A note about requests</span><h2>Help grow the lounge.</h2><p>Submissions are sent to a private inbox. Only the site owner and assigned Helpers can sign in to view them.</p></aside></section>`;
+  return `<section class="page-head"><span class="eyebrow">Keep the lounge growing</span><h1>Request a video or game.</h1><p>Send a suggestion for the lounge. Your name and suggestion are only visible in the private inbox to authorized Developer accounts.</p></section><section class="request-layout"><div class="form-card"><form class="request-form" data-request-form><label for="request-name">#1 Whats your name?</label><input id="request-name" name="name" type="text" autocomplete="name" maxlength="80" required /><label for="request-item">#2 What is the video or game name you want?</label><input id="request-item" name="item" type="text" maxlength="160" required /><button class="button primary" type="submit">Send request <span aria-hidden="true">↗</span></button><p class="request-form-status" data-request-status aria-live="polite"></p></form></div><aside class="request-note"><span class="eyebrow">A note about requests</span><h2>Help grow the lounge.</h2><p>Submissions are sent to a private inbox that only the two authorized Developer accounts can view.</p></aside></section>`;
 }
 
 function privateRequestsPage() {
-  return `<section class="page-head"><span class="eyebrow">Owner &amp; Helper access</span><h1>Private requests.</h1><p>Sign in with the email and password for the owner or an account that has been granted the Helper role.</p></section><section class="admin-requests-panel"><form class="request-form admin-login-form" data-admin-login hidden><label for="admin-email">Email</label><input id="admin-email" name="email" type="email" autocomplete="username" required /><label for="admin-password">Password</label><input id="admin-password" name="password" type="password" autocomplete="current-password" required /><button class="button primary" type="submit">Sign in</button></form><p class="request-form-status admin-status" data-admin-status aria-live="polite">Checking access…</p><div data-admin-results hidden></div></section>`;
+  return `<section class="page-head"><span class="eyebrow">Developer access</span><h1>Private requests.</h1><p>Only authorized Developer accounts can view this inbox.</p></section><section class="admin-requests-panel"><p class="request-form-status admin-status" data-admin-status aria-live="polite">Checking access…</p><div data-admin-results hidden></div></section>`;
 }
 
 async function refreshPrivateRequests() {
-  const loginForm = app.querySelector("[data-admin-login]");
   const status = app.querySelector("[data-admin-status]");
   const results = app.querySelector("[data-admin-results]");
-  if (!loginForm || !status || !results) return;
+  if (!status || !results) return;
 
   if (!supabaseClient) {
     status.textContent = "The private inbox needs Supabase project settings. See the setup steps in README.md.";
@@ -683,44 +692,17 @@ async function refreshPrivateRequests() {
 
   const { data, error } = await supabaseClient.auth.getSession();
   if (error) {
-    loginForm.hidden = false;
-    status.textContent = "Could not check sign-in. Please reload and try again.";
+    window.location.hash = "account";
     return;
   }
 
   const session = data.session;
-  if (!session) {
-    loginForm.hidden = false;
-    status.textContent = "Sign in with the owner account or an assigned Helper account to view requests.";
+  if (!session || !getAccountRole(session.user.email)) {
+    window.location.hash = session ? "home" : "account";
     return;
   }
 
-  const isOwner = Boolean(supabaseConfig.adminEmail)
-    && session.user.email?.toLowerCase() === supabaseConfig.adminEmail.toLowerCase();
-  let isHelper = false;
-  if (!isOwner) {
-    const { data: helper, error: helperError } = await supabaseClient
-      .from("request_helpers")
-      .select("user_id")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-    if (helperError) {
-      console.error("Could not verify Helper access.", helperError);
-      loginForm.hidden = false;
-      status.textContent = "Could not verify Helper access. Run the updated supabase-setup.sql, then try again.";
-      return;
-    }
-    isHelper = Boolean(helper);
-  }
-
-  if (!isOwner && !isHelper) {
-    loginForm.hidden = false;
-    status.textContent = "This account has not been assigned inbox access. Use the owner account or ask the owner to grant you the Helper role.";
-    return;
-  }
-
-  loginForm.hidden = true;
-  status.textContent = isOwner ? "Owner signed in. The private inbox is ready." : "Helper signed in. The private inbox is ready.";
+  status.textContent = "Developer account verified. The private inbox is ready.";
   const { data: requests, error: requestError } = await supabaseClient
     .from("video_requests")
     .select("id, name, item, created_at")
@@ -736,11 +718,12 @@ async function refreshPrivateRequests() {
   results.hidden = false;
   results.innerHTML = `<button class="button secondary admin-sign-out" type="button" data-admin-sign-out>Sign out</button>${requestListMarkup(requests || [])}`;
   results.querySelector("[data-admin-sign-out]")?.addEventListener("click", async () => {
-    await supabaseClient.auth.signOut();
-    results.hidden = true;
-    loginForm.hidden = false;
-    loginForm.reset();
-    status.textContent = "You have signed out.";
+    const { error: signOutError } = await supabaseClient.auth.signOut();
+    if (signOutError) {
+      status.textContent = "Could not sign out. Please try again.";
+      return;
+    }
+    window.location.hash = "account";
   });
 }
 
@@ -1098,33 +1081,6 @@ function wirePageControls(route) {
     });
   }
 
-  if (route === "requests") {
-    const loginForm = app.querySelector("[data-admin-login]");
-    loginForm?.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const email = loginForm.elements.namedItem("email").value.trim();
-      const password = loginForm.elements.namedItem("password").value;
-      const status = app.querySelector("[data-admin-status]");
-      if (!supabaseClient) {
-        status.textContent = "The private inbox needs Supabase project settings.";
-        return;
-      }
-
-      const button = loginForm.querySelector('[type="submit"]');
-      button.disabled = true;
-      status.textContent = "Signing in…";
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      button.disabled = false;
-      if (error) {
-        status.textContent = "Sign-in failed. Check the email and password, then try again.";
-        return;
-      }
-
-      loginForm.reset();
-      await refreshPrivateRequests();
-    });
-  }
-
   const heroLogo = document.querySelector(".hero-art img");
   if (heroLogo) {
     let dragStart;
@@ -1340,6 +1296,15 @@ function wireChatControls() {
 
 async function render() {
   const route = window.location.hash.slice(1) || "home";
+  const { data: sessionData } = supabaseClient
+    ? await supabaseClient.auth.getSession()
+    : { data: { session: null } };
+  const currentUser = sessionData?.session?.user || null;
+  setInboxNavigation(currentUser);
+  if (route === "requests" && !getAccountRole(currentUser?.email)) {
+    window.location.hash = currentUser ? "home" : "account";
+    return;
+  }
   const person = people.find((entry) => entry.slug === route);
   const pageRoute = route;
   app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "chat" ? chatPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
