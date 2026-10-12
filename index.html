@@ -20,7 +20,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700;800&family=Lora:wght@500;600&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=14" />
+    <link rel="stylesheet" href="styles.css?v=16" />
   </head>
   <body>
     <div class="site-shell">
@@ -58,6 +58,26 @@
         <h2 id="updates-title">Fresh things in the lounge.</h2>
         <p id="updates-intro" class="updates-intro">A quick, top-to-bottom list of what’s new and how the lounge is growing.</p>
         <div class="updates-list">
+          <article class="update-card">
+            <span class="update-person">New · Chat appearance</span>
+            <h3>White message cards, black text</h3>
+            <p>Chat messages now use a clean white background with black usernames and message text, including in dark mode.</p>
+          </article>
+          <article class="update-card">
+            <span class="update-person">New · Profile pictures</span>
+            <h3>Upload and preview your avatar</h3>
+            <p>Choose an image to preview it, then save your profile to upload it to your account. JPEG, PNG, GIF, WebP, and AVIF images up to 5 MB are supported.</p>
+          </article>
+          <article class="update-card">
+            <span class="update-person">New · Profile editor</span>
+            <h3>Profile changes save to your account</h3>
+            <p>Your username and picture are saved through your signed-in account, and the editor now reports upload or save errors instead of showing a false success.</p>
+          </article>
+          <article class="update-card">
+            <span class="update-person">New · Private inbox</span>
+            <h3>Developer-only request access</h3>
+            <p>Only the authorized Developer accounts can open the inbox. Supabase also blocks other accounts from reading requests; Helpers do not have inbox access.</p>
+          </article>
           <article class="update-card">
             <span class="update-person">Aidan’s page</span>
             <h3>Three new songs</h3>
@@ -119,7 +139,7 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=1"></script>
-    <script src="script.js?v=26"></script>
+    <script src="script.js?v=27"></script>
     <script data-goatcounter="https://noxdev.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   </body>
 </html>

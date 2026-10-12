@@ -166,8 +166,8 @@ h1 em { color: var(--blue); font-style: normal; }
 .form-card { padding: 10px; border: 1px solid var(--line); border-radius: 24px; background: var(--card); box-shadow: var(--shadow); }
 .request-form { display: grid; gap: 12px; padding: clamp(20px, 3vw, 32px); }
 .request-form label { margin-top: 5px; color: var(--ink); font-size: .82rem; font-weight: 700; }
-.request-form input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--ink); background: var(--paper); font: inherit; }
-.request-form input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+.request-form input, .request-form select { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; color: var(--ink); background: var(--paper); font: inherit; }
+.request-form input:focus, .request-form select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
 .request-form .button { justify-self: start; margin-top: 8px; }
 .request-form-status { min-height: 1.3em; margin: 0; color: var(--blue); font-size: .8rem; }
 .request-list-section { padding: 0 0 90px; }
@@ -189,6 +189,16 @@ h1 em { color: var(--blue); font-style: normal; }
 .account-panel h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -.05em; }
 .account-panel p { color: var(--muted); line-height: 1.6; }
 .account-panel .request-form { max-width: 520px; padding: 14px 0; }
+.profile-editor { position: relative; margin-top: 22px; padding: clamp(18px, 3vw, 28px); border: 1px solid var(--line); border-radius: 22px; background: var(--card-soft); }
+.profile-editor .profile-banner { height: clamp(110px, 20vw, 170px); margin: -8px -8px 20px; border-radius: 16px; background-color: var(--blue-soft); }
+.profile-editor .account-identity { justify-content: flex-start; align-items: center; gap: 16px; margin-bottom: 14px; }
+.profile-editor .account-identity > div:last-of-type { min-width: 0; }
+.profile-editor .account-identity h2 { margin: 3px 0; font-size: clamp(1.45rem, 4vw, 2rem); overflow-wrap: anywhere; }
+.profile-editor .account-avatar { flex: 0 0 76px; width: 76px; height: 76px; box-shadow: 0 8px 22px rgba(28,33,40,.1); }
+.profile-editor .request-form { max-width: none; margin: 0; padding: 16px 0 0; border-top: 1px solid var(--line); }
+.profile-editor .request-form input[type="file"] { min-height: auto; padding: 10px; border-style: dashed; background: var(--card); cursor: pointer; }
+.profile-editor .request-form input[type="file"]::file-selector-button { margin-right: 12px; padding: 9px 12px; border: 0; border-radius: 999px; color: var(--ink); background: var(--blue-soft); font: inherit; font-size: .78rem; font-weight: 700; cursor: pointer; }
+.profile-editor .feature-section { margin-top: 24px; }
 .account-switch { margin: 8px 0 0; font-size: .86rem; }
 .account-switch button { padding: 0; border: 0; color: var(--blue); background: none; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
 .account-identity { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; }
@@ -213,14 +223,14 @@ h1 em { color: var(--blue); font-style: normal; }
 .chat-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 22px; border-bottom: 1px solid var(--line); }
 .chat-header h2 { margin: 6px 0 0; font-family: var(--font-display); font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -.04em; }
 .chat-stream { display: grid; gap: 12px; min-height: 220px; max-height: 520px; overflow-y: auto; padding: 20px 22px; background: linear-gradient(180deg, rgba(38,121,232,.04), transparent 38%); }
-.chat-message { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.56); backdrop-filter: blur(8px); }
+.chat-message { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; color: #111111; background: #ffffff; }
 .chat-avatar { width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: var(--blue-soft); display: grid; place-items: center; color: var(--blue); font-size: .78rem; font-weight: 800; }
 .chat-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .chat-meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px; }
-.chat-meta strong { font-size: .8rem; }
+.chat-meta strong { color: #111111; font-size: .8rem; }
 .chat-meta .role-tag { margin-right: auto; margin-top: 0; padding: 3px 7px; font-size: .56rem; }
 .chat-meta time { color: var(--muted); font-size: .68rem; }
-.chat-message p { margin: 0; color: var(--ink); line-height: 1.55; }
+.chat-message p { margin: 0; color: #111111; line-height: 1.55; }
 .chat-form { border-top: 1px solid var(--line); padding: 20px 22px; }
 .chat-form textarea { width: 100%; min-height: 92px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font: inherit; }
 .chat-form textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }

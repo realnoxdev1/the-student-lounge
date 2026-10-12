@@ -169,13 +169,13 @@ async function saveCurrentProfile(user, profile) {
       .from("user_profiles")
       .upsert({ user_id: user.id, ...safeProfile, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
     if (error) throw error;
-    await supabaseClient.auth.updateUser({ data: { display_name: safeProfile.username } });
+    const { error: metadataError } = await supabaseClient.auth.updateUser({ data: { display_name: safeProfile.username } });
+    if (metadataError) console.warn("Profile saved, but the account display name could not be updated.", metadataError);
     saveLocalProfile(safeProfile);
     return safeProfile;
   } catch (error) {
     console.warn("Unable to save profile.", error);
-    saveLocalProfile(safeProfile);
-    return safeProfile;
+    throw error;
   }
 }
 
@@ -188,14 +188,26 @@ function applyProfileTheme(profile = getLocalProfile()) {
 async function uploadProfileImage(file, user) {
   if (!file || !user || !supabaseClient) return "";
 
-  const safeName = `${user.id}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+  if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("Choose an image smaller than 5 MB.");
+
+  const extension = ({
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/avif": "avif"
+  })[file.type];
+  if (!extension) throw new Error("Use a JPEG, PNG, GIF, WebP, or AVIF image.");
+
+  const objectPath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
   const { error } = await supabaseClient.storage
     .from("avatars")
-    .upload(safeName, file, { upsert: true, cacheControl: "3600" });
+    .upload(objectPath, file, { upsert: false, cacheControl: "3600", contentType: file.type });
 
   if (error) throw error;
 
-  const { data } = supabaseClient.storage.from("avatars").getPublicUrl(safeName);
+  const { data } = supabaseClient.storage.from("avatars").getPublicUrl(objectPath);
   return data?.publicUrl || "";
 }
 
@@ -822,6 +834,12 @@ async function refreshAccountPage() {
       memberPanel.insertAdjacentHTML("beforeend", `<div class="profile-editor" data-profile-editor><div class="profile-banner" data-profile-banner hidden></div><div class="account-identity"><div class="account-avatar" data-profile-avatar></div><div><span class="eyebrow">Profile</span><h2 data-account-name>${escapeHtml(profile.username || "Lounge member")}</h2><p class="account-email" data-account-email>${escapeHtml(user.email || "")}</p></div><span class="pro-badge" data-pro-badge>Loading…</span></div><div class="pro-status-card" data-pro-status-card><p><strong>Pro status</strong></p><p data-pro-status>Checking your membership…</p></div><form class="request-form" data-profile-form><label for="profile-username">Username</label><input id="profile-username" data-profile-username name="username" type="text" maxlength="30" required /><label for="profile-avatar-url">Profile picture URL</label><input id="profile-avatar-url" data-profile-avatar-url name="avatarUrl" type="url" placeholder="https://..." /><label for="profile-avatar-file">Upload avatar image</label><input id="profile-avatar-file" data-profile-avatar-file name="avatarFile" type="file" accept="image/*" /><div data-pro-profile-tools hidden><label for="profile-banner-preset">Banner preset</label><select id="profile-banner-preset" data-profile-banner-preset name="bannerPreset">${proBannerPresets.map((preset) => `<option value="${preset.value}">${preset.label}</option>`).join("")}</select><label for="profile-banner-url">Or use a custom banner URL</label><input id="profile-banner-url" data-profile-banner-url name="bannerUrl" type="url" placeholder="https://..." /><label for="profile-font">Custom font</label><select id="profile-font" data-profile-font name="preferredFont">${profileFonts.map((font) => `<option value="${font.value}">${font.label}</option>`).join("")}</select></div><button class="button primary" type="submit">Save profile</button><p class="account-message" data-profile-message aria-live="polite"></p></form><div class="feature-section"><div class="feature-header"><span class="eyebrow">Your favorites</span><h2>Playlist</h2></div><div data-favorite-playlist></div></div><button class="button secondary" type="button" data-open-chat>Open chat</button><button class="button secondary" type="button" data-account-sign-out>Sign out</button></div>`);
     }
 
+    const editor = memberPanel.querySelector("[data-profile-editor]");
+    editor?.querySelector("[data-pro-badge]")?.remove();
+    editor?.querySelector("[data-pro-status-card]")?.remove();
+    editor?.querySelector("[data-open-chat]")?.remove();
+    editor?.querySelector("[data-account-sign-out]")?.remove();
+
     memberPanel.querySelectorAll("[data-account-name]").forEach((name) => updateRoleTag(name, accountRole));
 
     const memberProfileBanner = memberPanel.querySelector("[data-profile-banner]");
@@ -977,45 +995,28 @@ function wireAccountControls() {
     }
   });
 
-  app.querySelector("[data-profile-form]")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const profileStatus = app.querySelector("[data-profile-message]");
-    const { data } = await supabaseClient.auth.getSession();
-    const user = data.session?.user;
-    if (!user) {
-      profileStatus.textContent = "Sign in to save a profile.";
-      return;
-    }
+  if (!app.dataset.profileFormEventsBound) {
+    app.addEventListener("submit", async (event) => {
+      if (!event.target.matches("[data-profile-form]")) return;
+      event.preventDefault();
+      await handleProfileFormSubmit(event.target);
+    });
+    app.addEventListener("change", (event) => {
+      if (!event.target.matches("[data-profile-avatar-file]")) return;
+      const form = event.target.form;
+      const imageFile = event.target.files?.[0];
+      if (!form || !imageFile) return;
 
-    let avatarUrl = form.elements.namedItem("avatarUrl").value.trim();
-    const avatarFile = form.querySelector("[data-profile-avatar-file]")?.files?.[0];
-    try {
-      if (avatarFile) {
-        profileStatus.textContent = "Uploading your avatar…";
-        avatarUrl = await uploadProfileImage(avatarFile, user) || avatarUrl;
-      }
-    } catch (error) {
-      console.error("Avatar upload failed.", error);
-      profileStatus.textContent = "Could not upload the avatar. Try a smaller image or a valid URL.";
-      return;
-    }
-
-    const bannerPresetValue = form.elements.namedItem("bannerPreset")?.value || "";
-    const bannerUrlInput = form.elements.namedItem("bannerUrl").value.trim();
-    const formProfile = {
-      username: form.elements.namedItem("username").value.trim(),
-      avatar_url: avatarUrl,
-      banner_url: bannerPresetValue && bannerPresetValue.startsWith("linear-gradient") ? bannerPresetValue : (bannerUrlInput || ""),
-      preferred_font: form.elements.namedItem("preferredFont").value || "classic"
-    };
-
-    profileStatus.textContent = "Saving your profile…";
-    const savedProfile = await saveCurrentProfile(user, formProfile);
-    profileStatus.textContent = "Profile saved.";
-    applyProfileTheme(savedProfile);
-    await refreshAccountPage();
-  });
+      if (form.dataset.avatarPreviewUrl) URL.revokeObjectURL(form.dataset.avatarPreviewUrl);
+      const previewUrl = URL.createObjectURL(imageFile);
+      form.dataset.avatarPreviewUrl = previewUrl;
+      const avatar = form.closest("[data-profile-editor]")?.querySelector("[data-profile-avatar]");
+      if (avatar) avatar.innerHTML = `<img src="${previewUrl}" alt="Selected profile picture preview" />`;
+      const profileStatus = form.querySelector("[data-profile-message]");
+      if (profileStatus) profileStatus.textContent = "Avatar preview ready. Save your profile to upload it.";
+    });
+    app.dataset.profileFormEventsBound = "true";
+  }
 
   app.querySelector("[data-open-chat]")?.addEventListener("click", () => {
     window.location.hash = "chat";
@@ -1033,6 +1034,63 @@ function wireAccountControls() {
     message.textContent = "You’re signed out.";
     await refreshAccountPage();
   });
+}
+
+async function handleProfileFormSubmit(form) {
+  const profileStatus = form.querySelector("[data-profile-message]");
+  const submitButton = form.querySelector('[type="submit"]');
+  const { data, error: sessionError } = await supabaseClient.auth.getSession();
+  const user = data.session?.user;
+  if (sessionError || !user) {
+    profileStatus.textContent = "Sign in to save a profile.";
+    return;
+  }
+
+  submitButton.disabled = true;
+  try {
+    let avatarUrl = form.elements.namedItem("avatarUrl").value.trim();
+    const avatarFile = form.querySelector("[data-profile-avatar-file]")?.files?.[0];
+    if (avatarFile) {
+      profileStatus.textContent = "Uploading your avatar…";
+      avatarUrl = await uploadProfileImage(avatarFile, user);
+    }
+
+    const { data: currentProfile } = await supabaseClient
+      .from("user_profiles")
+      .select("banner_url, preferred_font")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const hasPro = await checkActiveProMembership();
+    const bannerPresetValue = form.elements.namedItem("bannerPreset")?.value || "";
+    const bannerUrlInput = form.elements.namedItem("bannerUrl")?.value.trim() || "";
+    const formProfile = {
+      username: form.elements.namedItem("username").value.trim(),
+      avatar_url: avatarUrl,
+      banner_url: hasPro
+        ? (bannerUrlInput || bannerPresetValue || "")
+        : (currentProfile?.banner_url || ""),
+      preferred_font: hasPro
+        ? (form.elements.namedItem("preferredFont").value || "classic")
+        : (currentProfile?.preferred_font || "classic")
+    };
+
+    profileStatus.textContent = "Saving your profile…";
+    const savedProfile = await saveCurrentProfile(user, formProfile);
+    if (form.dataset.avatarPreviewUrl) URL.revokeObjectURL(form.dataset.avatarPreviewUrl);
+    delete form.dataset.avatarPreviewUrl;
+    form.querySelector("[data-profile-avatar-file]").value = "";
+    applyProfileTheme(savedProfile);
+    await refreshAccountPage();
+    const refreshedStatus = app.querySelector("[data-profile-message]");
+    if (refreshedStatus) refreshedStatus.textContent = "Profile saved successfully.";
+  } catch (error) {
+    console.error("Could not save profile.", error);
+    profileStatus.textContent = error.message?.includes("StorageApiError") || error.statusCode
+      ? "Avatar upload failed. Confirm the avatars bucket and storage policies are set up, then try again."
+      : `Profile could not be saved: ${error.message || "check the Supabase setup and try again."}`;
+  } finally {
+    submitButton.disabled = false;
+  }
 }
 
 function wirePageControls(route) {
