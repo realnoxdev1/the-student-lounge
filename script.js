@@ -1,12 +1,10 @@
-const videos = (items) => items;
-
 const people = [
-  { slug: "micheal-phelps", name: "Micheal Phelps", note: "Two picks for a quiet watch", media: videos([["Unstable SMP: The Mafia", "CpNP39w2hEk"], ["STELLA LEFTY - Boston", "VrChRBLw3OQ"]]) },
-  { slug: "micheal-collins", name: "Micheal Collins - Me", note: "A classic cartoon corner", media: videos([["Tom & Jerry in Full Screen", "t0Q2otsqC4I"]]) },
-  { slug: "colin-o", name: "Colin O", note: "A full playlist for the room", media: videos([["Lil Baby - Dead Fresh", "PXxbEfhtDiM"], ["Kodak Black - Already", "vhmpbXsAl9c"], ["Don Toliver - E85", "7GwLnsVUwHY"], ["Drake - Headlines", "cimoNqiulUE"], ["Kanye West - Homecoming", "LQ488QrqGE4"], ["Don Toliver - Excavator", "_SrosL0WdOQ"]]) },
-  { slug: "aidan", name: "Aidan", note: "Music, plus two games to pick up", media: videos([["Lil Baby - Dead Fresh", "PXxbEfhtDiM"], ["Don Toliver - No Pole", "nM_ZUbSIA0Q"], ["Djo - End Of Beginning (Lyrics)", "B3Z4XGAxJB0"], ["The Killers - Mr Brightside (Lyrics)", "j8tZs6G_h7U"], ["Mustard - Pure Water [Lyrics/Lyric] Ft. Migos", "hVsEbUm-kb0"]]), games: [["Tetr.io-style game", "https://telatro.tomcat.sh/game/"], ["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
-  { slug: "christian", name: "Christian", note: "A lot of music and a game break", media: videos([["Rebecca Black - Friday", "WqVIvVh-dkI"], ["ELO - Mr Blue Sky", "sQiPtneudlo"], ["Pharrell Williams - Double Life", "fWtn6RMNiok"], ["Avicii - The Nights (Lyrics)", "H78YW7ycuwI"], ["Post Malone, Swae Lee - Sunflower", "ApXoWvfEYVU"], ["Imagine Dragons - Believer", "W0DM5lcj6mw"], ["Redbone - Come and Get Your Love", "wFwYcHjP-YU"], ["Imagine Dragons - Thunder", "GtEvysh1654"], ["The Buggles - Video Killed The Radio Star (Lyrics)", "XMEN_FsVg_c"], ["Silver - Wham Bam Shang-A-Lang", "M5iSEdo5VNI"], ["Blue Swede - Hooked On A Feeling", "Bo-qweh7nbQ"]]), games: [["Retro Bowl", "https://falloutscript.github.io/Retrobowl/"]] },
-  { slug: "henry", name: "Henry", note: "One game, ready when you are", games: [["Tetr.io-style game", "https://telatro.tomcat.sh/game/"]] }
+  { slug: "micheal-phelps", name: "Micheal Phelps", note: "Two picks for a quiet watch" },
+  { slug: "micheal-collins", name: "Micheal Collins - Me", note: "A classic cartoon corner" },
+  { slug: "colin-o", name: "Colin O", note: "A full playlist for the room" },
+  { slug: "aidan", name: "Aidan", note: "Music, plus two games to pick up" },
+  { slug: "christian", name: "Christian", note: "A lot of music and a game break" },
+  { slug: "henry", name: "Henry", note: "One game, ready when you are" }
 ];
 
 const app = document.querySelector("#app");
@@ -91,9 +89,19 @@ function getAccountRole(email = "") {
   return "";
 }
 
+function isDeveloper(user) {
+  return getAccountRole(user?.email) === "Developer";
+}
+
+function isStaff(user) {
+  return Boolean(getAccountRole(user?.email));
+}
+
 function setInboxNavigation(user) {
   const inboxLink = document.querySelector('[data-nav="requests"]');
-  if (inboxLink) inboxLink.hidden = !getAccountRole(user?.email);
+  if (inboxLink) inboxLink.hidden = !isDeveloper(user);
+  const mediaLink = document.querySelector('[data-nav="manage-media"]');
+  if (mediaLink) mediaLink.hidden = !isStaff(user);
 }
 
 function updateRoleTag(target, role) {
@@ -227,13 +235,22 @@ function bannerBackgroundStyle(value) {
   return `url("${value}")`;
 }
 
-function favoritePlaylistMarkup() {
+async function favoritePlaylistMarkup() {
   const favoriteKeys = getFavoriteSet();
-  const entries = people.flatMap((person) => {
-    const mediaItems = (person.media || []).map(([title, id]) => ({ kind: "video", id, label: title, url: watchUrl(id) }));
-    const gameItems = (person.games || []).map(([title, url]) => ({ kind: "game", id: url, label: title, url }));
-    return [...mediaItems, ...gameItems];
-  }).filter((item) => favoriteKeys.has(`${item.kind}:${item.id}`));
+  let mediaItems = [];
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from("lounge_media")
+      .select("kind, title, embed_url")
+      .eq("is_active", true);
+    if (!error) {
+      mediaItems = (data || []).flatMap((item) => {
+        const id = item.kind === "video" ? getYouTubeVideoId(item.embed_url) : item.embed_url;
+        if (!id) return [];
+        return [{ kind: item.kind, id, label: item.title, url: item.kind === "video" ? watchUrl(id) : item.embed_url }];
+      });
+    }
+  }
+  const entries = mediaItems.filter((item) => favoriteKeys.has(`${item.kind}:${item.id}`));
 
   if (!entries.length) {
     return '<div class="feature-empty"><p>No favorites yet. Tap the heart on any video or game to build your lounge playlist.</p></div>';
@@ -242,10 +259,10 @@ function favoritePlaylistMarkup() {
   return `<ul class="favorite-list">${entries.map((item) => `<li><div><strong>${escapeHtml(item.label)}</strong><br /><small>${item.kind === "video" ? "Video" : "Game"}</small></div><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Open ↗</a></li>`).join("")}</ul>`;
 }
 
-function renderFavoritePlaylist() {
+async function renderFavoritePlaylist() {
   const panel = app.querySelector("[data-favorite-playlist]");
   if (!panel) return;
-  panel.innerHTML = favoritePlaylistMarkup();
+  panel.innerHTML = await favoritePlaylistMarkup();
 }
 
 function chatPage() {
@@ -281,7 +298,7 @@ function privateInboxErrorMessage(error) {
     return "Supabase cannot find public.video_requests in this project. Make sure the table is named video_requests in the public schema, then run all of supabase-setup.sql in this same project’s SQL Editor.";
   }
   if (error?.code === "42501") {
-    return "The table exists, but Supabase is denying inbox access. Re-run supabase-setup.sql and confirm this account is the owner or has been granted the Helper role.";
+    return "Supabase denied this inbox read. Confirm the signed-in account is exactly kbotros2027@staschool.us or karaas.botros2@gmail.com, then run the latest supabase-setup.sql in this project’s SQL Editor.";
   }
   if (error?.code === "PGRST204" || error?.code === "42703") {
     return "The requests table columns do not match the site. It needs id, name, item, and created_at; check the table setup SQL.";
@@ -697,7 +714,7 @@ function setFavoriteSet(set) {
 function favoriteButtonMarkup(kind, id, label) {
   const key = `${kind}:${id}`;
   const favorited = getFavoriteSet().has(key);
-  return `<button class="favorite-button ${favorited ? "is-favorited" : ""}" type="button" data-favorite-toggle data-favorite-kind="${kind}" data-favorite-id="${id}" data-favorite-label="${label}" aria-label="${favorited ? "Remove from favorites" : "Add to favorites"}: ${label}" title="${favorited ? "Remove from favorites" : "Add to favorites"}">${favorited ? "♥" : "♡"}</button>`;
+  return `<button class="favorite-button ${favorited ? "is-favorited" : ""}" type="button" data-favorite-toggle data-favorite-kind="${escapeHtml(kind)}" data-favorite-id="${escapeHtml(id)}" data-favorite-label="${escapeHtml(label)}" aria-label="${favorited ? "Remove from favorites" : "Add to favorites"}: ${escapeHtml(label)}" title="${favorited ? "Remove from favorites" : "Add to favorites"}">${favorited ? "♥" : "♡"}</button>`;
 }
 
 function recentTagMarkup(recentlyAdded) {
@@ -705,11 +722,14 @@ function recentTagMarkup(recentlyAdded) {
 }
 
 function mediaCard(title, id, index, { recentlyAdded = false } = {}) {
-  return `<article class="media-card video-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("video", id, title)}</div><div class="media-frame video-frame"><iframe src="${videoUrl(id)}" title="${title}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
+  const safeTitle = escapeHtml(title);
+  return `<article class="media-card video-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("video", id, title)}</div><div class="media-frame video-frame"><iframe src="${videoUrl(id)}" title="${safeTitle}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe></div><div class="media-info"><small>Video ${String(index + 1).padStart(2, "0")}</small><h3>${safeTitle}</h3><a class="video-watch-link" href="${watchUrl(id)}" target="_blank" rel="noopener noreferrer">Watch on YouTube <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 function gameCard([title, url], index, { recentlyAdded = false } = {}) {
-  return `<article class="media-card game-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("game", url, title)}</div><div class="media-frame"><iframe src="${url}" title="${title}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${title} fullscreen" aria-label="Open ${title} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${title}</h3><a class="game-launch-link" href="${url}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
+  const safeTitle = escapeHtml(title);
+  const safeUrl = escapeHtml(url);
+  return `<article class="media-card game-card"><div class="media-top-row">${recentTagMarkup(recentlyAdded)}${favoriteButtonMarkup("game", url, title)}</div><div class="media-frame"><iframe src="${safeUrl}" title="${safeTitle}" loading="lazy" allow="fullscreen; gamepad" allowfullscreen></iframe><button class="fullscreen-button" type="button" data-fullscreen title="Open ${safeTitle} fullscreen" aria-label="Open ${safeTitle} fullscreen"><span aria-hidden="true">⛶</span><span>Full screen</span></button></div><div class="media-info"><small>Game ${String(index + 1).padStart(2, "0")}</small><h3>${safeTitle}</h3><a class="game-launch-link" href="${safeUrl}" target="_blank" rel="noopener noreferrer">Open in new tab <span aria-hidden="true">↗</span></a></div></article>`;
 }
 
 document.addEventListener("fullscreenchange", () => {
@@ -730,10 +750,153 @@ function peopleDirectoryPage() {
   return `<section class="page-head"><span class="eyebrow">The room list</span><h1>Find your people.</h1><p>Choose a corner and settle in.</p></section><section class="people-directory"><div class="people-grid">${cards}</div></section>`;
 }
 
-function personPage(person) {
-  const media = person.media?.map(([title, id], index) => mediaCard(title, id, index)).join("") || "";
-  const games = person.games?.map(gameCard).join("") || "";
-  return `<section class="page-head"><span class="eyebrow">A corner for</span><h1>${person.name}</h1><p>${person.note}. Take your time, turn the volume down, and make yourself comfortable.</p></section>${person.media?.length ? `<section><div class="section-heading"><h2>Watch list</h2><p>Hand-picked for this corner of the lounge.</p></div><div class="media-grid">${media}</div></section>` : ""}${person.games?.length ? `<section><div class="section-heading"><h2>Play room</h2><p>Open a game right here and keep your place in the lounge.</p></div><div class="media-grid">${games}</div></section>` : ""}`;
+function personPage(person, items = []) {
+  const videos = items.filter((item) => item.kind === "video");
+  const games = items.filter((item) => item.kind === "game");
+  const media = videos.map((item, index) => mediaCard(item.title, getYouTubeVideoId(item.embed_url), index)).join("");
+  const gameCards = games.map((item, index) => gameCard([item.title, item.embed_url], index)).join("");
+  return `<section class="page-head"><span class="eyebrow">A corner for</span><h1>${escapeHtml(person.name)}</h1><p>${escapeHtml(person.note)}. Take your time, turn the volume down, and make yourself comfortable.</p></section>${videos.length ? `<section><div class="section-heading"><h2>Watch list</h2><p>Hand-picked for this corner of the lounge.</p></div><div class="media-grid">${media}</div></section>` : ""}${games.length ? `<section><div class="section-heading"><h2>Play room</h2><p>Open a game right here and keep your place in the lounge.</p></div><div class="media-grid">${gameCards}</div></section>` : ""}${!items.length ? '<p class="empty-note">This page is ready for videos and games.</p>' : ""}`;
+}
+
+function getYouTubeVideoId(value) {
+  try {
+    const url = new URL(value);
+    const pathMatch = url.pathname.match(/\/(?:embed|shorts|live)\/([\w-]+)/);
+    const id = pathMatch?.[1] || (url.hostname.endsWith("youtu.be") ? url.pathname.slice(1).split("/")[0] : url.searchParams.get("v"));
+    return /^[\w-]{6,20}$/.test(id || "") ? id : "";
+  } catch {
+    return "";
+  }
+}
+
+async function loadPublishedPageMedia(personSlug) {
+  if (!supabaseClient) return [];
+  const { data, error } = await supabaseClient
+    .from("lounge_media")
+    .select("id, person_slug, kind, title, embed_url, is_active")
+    .eq("person_slug", personSlug)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Could not load page media.", error);
+    return [];
+  }
+  return data || [];
+}
+
+function mediaManagerPage() {
+  const options = people.map((person) => `<option value="${person.slug}">${escapeHtml(person.name)}’s page</option>`).join("");
+  return `<section class="page-head"><span class="eyebrow">Helper &amp; Developer tools</span><h1>Manage pages.</h1><p>Choose a person’s page to review its videos and games. Add an embed and it will appear on that page for everyone.</p></section><section class="media-manager-panel"><div class="media-manager-toolbar"><label for="media-person-select">Everyone’s pages</label><select id="media-person-select" data-media-person>${options}</select><button class="button primary" type="button" data-media-add-open>+ Add new</button></div><p class="request-form-status" data-media-manager-status aria-live="polite">Loading page content…</p><div data-media-manager-list></div><form class="request-form media-add-form" data-media-add-form hidden><h2>Add to this page</h2><label for="media-title">Video or game name</label><input id="media-title" name="title" type="text" maxlength="120" required placeholder="e.g. My favorite video" /><label for="media-embed">Video or game embed code</label><textarea id="media-embed" name="embed" maxlength="4000" required placeholder="Paste a YouTube iframe or a game iframe embed code"></textarea><p class="media-form-hint">YouTube embeds are detected as videos. Other secure iframe embeds are added as games.</p><button class="button primary" type="submit">Add to page</button><button class="button secondary" type="button" data-media-add-cancel>Cancel</button><p class="request-form-status" data-media-add-status aria-live="polite"></p></form></section>`;
+}
+
+function mediaManagerListMarkup(items) {
+  if (!items.length) return '<p class="request-empty">No videos or games are saved on this page yet.</p>';
+  return `<ul class="media-manager-list">${items.map((item) => `<li class="media-manager-entry ${item.is_active ? "" : "is-inactive"}"><div><span class="eyebrow">${item.kind === "video" ? "Video" : "Game"}${item.is_active ? "" : " · Removed"}</span><h3>${escapeHtml(item.title)}</h3><a href="${escapeHtml(item.embed_url)}" target="_blank" rel="noopener noreferrer">Preview embed ↗</a></div><button class="button secondary" type="button" data-media-toggle="${item.is_active ? "remove" : "restore"}" data-media-id="${escapeHtml(item.id)}">${item.is_active ? "Remove" : "Restore"}</button></li>`).join("")}</ul>`;
+}
+
+function parseMediaEmbed(embedCode) {
+  const trimmed = embedCode.trim();
+  let source = trimmed;
+  if (trimmed.includes("<")) {
+    const documentCopy = new DOMParser().parseFromString(trimmed, "text/html");
+    source = documentCopy.querySelector("iframe")?.getAttribute("src") || "";
+  }
+  if (!source) throw new Error("Paste a valid iframe embed code or HTTPS embed URL.");
+  let url;
+  try {
+    url = new URL(source, window.location.href);
+  } catch {
+    throw new Error("The embed code needs a valid source URL.");
+  }
+  if (url.protocol !== "https:" || url.username || url.password) throw new Error("Use an HTTPS embed source.");
+
+  const isYouTube = ["youtube.com", "www.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com", "youtu.be", "www.youtu.be"].includes(url.hostname.toLowerCase());
+  if (isYouTube) {
+    const videoId = getYouTubeVideoId(url.href);
+    if (!videoId) throw new Error("That looks like a YouTube embed, but its video ID could not be found.");
+    return { kind: "video", embed_url: `https://www.youtube-nocookie.com/embed/${videoId}` };
+  }
+  return { kind: "game", embed_url: url.href };
+}
+
+async function refreshMediaManager() {
+  const status = app.querySelector("[data-media-manager-status]");
+  const list = app.querySelector("[data-media-manager-list]");
+  const selector = app.querySelector("[data-media-person]");
+  if (!status || !list || !selector) return;
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+  const user = sessionData?.session?.user;
+  if (sessionError || !isStaff(user)) {
+    window.location.hash = user ? "home" : "account";
+    return;
+  }
+  const { data, error } = await supabaseClient.from("lounge_media")
+    .select("id, person_slug, kind, title, embed_url, is_active")
+    .eq("person_slug", selector.value)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Could not load managed page content.", error);
+    status.textContent = "Page content is not connected yet. Run the updated supabase-setup.sql in your Supabase project, then reload.";
+    list.innerHTML = "";
+    return;
+  }
+  status.textContent = "Changes here are visible on the selected person’s page.";
+  list.innerHTML = mediaManagerListMarkup(data || []);
+  list.querySelectorAll("[data-media-toggle]").forEach((button) => button.addEventListener("click", async () => {
+    button.disabled = true;
+    const nextActive = button.dataset.mediaToggle === "restore";
+    const { error: updateError } = await supabaseClient.from("lounge_media")
+      .update({ is_active: nextActive })
+      .eq("id", button.dataset.mediaId);
+    if (updateError) {
+      console.error("Could not update page content.", updateError);
+      status.textContent = "Could not update this item. Check the lounge_media policies in Supabase and try again.";
+      button.disabled = false;
+      return;
+    }
+    await refreshMediaManager();
+  }));
+}
+
+function wireMediaManagerControls() {
+  const selector = app.querySelector("[data-media-person]");
+  const form = app.querySelector("[data-media-add-form]");
+  const openButton = app.querySelector("[data-media-add-open]");
+  const cancelButton = app.querySelector("[data-media-add-cancel]");
+  selector?.addEventListener("change", refreshMediaManager);
+  openButton?.addEventListener("click", () => { form.hidden = false; form.elements.namedItem("title").focus(); });
+  cancelButton?.addEventListener("click", () => { form.reset(); form.hidden = true; });
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const status = form.querySelector("[data-media-add-status]");
+    const submit = form.querySelector('[type="submit"]');
+    const title = form.elements.namedItem("title").value.trim();
+    try {
+      const parsedEmbed = parseMediaEmbed(form.elements.namedItem("embed").value);
+      const { data: sessionData } = await supabaseClient.auth.getSession();
+      const user = sessionData?.session?.user;
+      if (!isStaff(user)) throw new Error("Only Helpers and Developers can add page content.");
+      submit.disabled = true;
+      status.textContent = `Adding as a ${parsedEmbed.kind}…`;
+      const { error } = await supabaseClient.from("lounge_media").insert({
+        person_slug: selector.value,
+        kind: parsedEmbed.kind,
+        title,
+        embed_url: parsedEmbed.embed_url,
+        created_by: user.id
+      });
+      if (error) throw error;
+      form.reset();
+      form.hidden = true;
+      status.textContent = "Added. This embed is now on the selected page.";
+      await refreshMediaManager();
+    } catch (error) {
+      console.error("Could not add page content.", error);
+      status.textContent = error.message || "Could not add this embed. Check the Supabase setup and try again.";
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }
 
 function hanyPage() {
@@ -765,7 +928,7 @@ async function refreshPrivateRequests() {
   }
 
   const session = data.session;
-  if (!session || !getAccountRole(session.user.email)) {
+  if (!session || !isDeveloper(session.user)) {
     window.location.hash = session ? "home" : "account";
     return;
   }
@@ -1419,13 +1582,18 @@ async function render() {
     : { data: { session: null } };
   const currentUser = sessionData?.session?.user || null;
   setInboxNavigation(currentUser);
-  if (route === "requests" && !getAccountRole(currentUser?.email)) {
+  if (route === "requests" && !isDeveloper(currentUser)) {
+    window.location.hash = currentUser ? "home" : "account";
+    return;
+  }
+  if (route === "manage-media" && !isStaff(currentUser)) {
     window.location.hash = currentUser ? "home" : "account";
     return;
   }
   const person = people.find((entry) => entry.slug === route);
+  const pageMedia = person ? await loadPublishedPageMedia(person.slug) : [];
   const pageRoute = route;
-  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "chat" ? chatPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person) : homePage();
+  app.innerHTML = pageRoute === "home" ? homePage() : pageRoute === "people" ? peopleDirectoryPage() : pageRoute === "request" ? requestsPage() : pageRoute === "requests" ? privateRequestsPage() : pageRoute === "manage-media" ? mediaManagerPage() : pageRoute === "account" ? accountPage() : pageRoute === "settings" ? settingsPage() : pageRoute === "chat" ? chatPage() : pageRoute === "hany" ? hanyPage() : person ? personPage(person, pageMedia) : homePage();
   if (pageRoute === "home") {
     mountDailyPoll();
     const hasPro = await checkActiveProMembership();
@@ -1441,6 +1609,10 @@ async function render() {
   updateRewardButtonState();
   wirePageControls(pageRoute);
   if (pageRoute === "requests") refreshPrivateRequests();
+  if (pageRoute === "manage-media") {
+    wireMediaManagerControls();
+    refreshMediaManager();
+  }
   if (pageRoute === "account") {
     wireAccountControls();
     refreshAccountPage();

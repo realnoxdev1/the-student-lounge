@@ -77,6 +77,135 @@ create policy "Developer emails can view requests"
 
 notify pgrst, 'reload schema';
 
+-- Staff role checks use the authenticated user's current Auth record rather
+-- than relying on a possibly stale email claim in the access token.
+create or replace function public.is_lounge_developer()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select exists (
+    select 1
+    from auth.users as account
+    where account.id = (select auth.uid())
+      and lower(coalesce(account.email, '')) in (
+        'kbotros2027@staschool.us',
+        'karaas.botros2@gmail.com'
+      )
+  );
+$function$;
+
+create or replace function public.is_lounge_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $function$
+  select exists (
+    select 1
+    from auth.users as account
+    where account.id = (select auth.uid())
+      and lower(coalesce(account.email, '')) in (
+        'kbotros2027@staschool.us',
+        'karaas.botros2@gmail.com',
+        'aluckay2027@staschool.us'
+      )
+  );
+$function$;
+
+revoke all on function public.is_lounge_developer() from public;
+revoke all on function public.is_lounge_staff() from public;
+grant execute on function public.is_lounge_developer() to anon, authenticated;
+grant execute on function public.is_lounge_staff() to anon, authenticated;
+
+drop policy if exists "Developer emails can view requests" on public.video_requests;
+drop policy if exists "Developers can view requests" on public.video_requests;
+create policy "Developers can view requests"
+  on public.video_requests
+  for select
+  to authenticated
+  using (public.is_lounge_developer());
+
+-- All existing page videos and games live in this table so Helpers and
+-- Developers can manage every item, not only newly-added embeds.
+create table if not exists public.lounge_media (
+  id uuid primary key default gen_random_uuid(),
+  person_slug text not null check (person_slug in (
+    'micheal-phelps', 'micheal-collins', 'colin-o', 'aidan', 'christian', 'henry'
+  )),
+  kind text not null check (kind in ('video', 'game')),
+  title text not null check (char_length(trim(title)) between 1 and 120),
+  embed_url text not null check (embed_url ~ '^https://'),
+  is_active boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.lounge_media enable row level security;
+grant select on table public.lounge_media to anon, authenticated;
+grant insert, update on table public.lounge_media to authenticated;
+create unique index if not exists lounge_media_person_kind_url_idx
+  on public.lounge_media (person_slug, kind, embed_url);
+
+drop policy if exists "Anyone can view active page media" on public.lounge_media;
+create policy "Anyone can view active page media"
+  on public.lounge_media
+  for select
+  to anon, authenticated
+  using (is_active or public.is_lounge_staff());
+
+drop policy if exists "Helpers and Developers can add page media" on public.lounge_media;
+create policy "Helpers and Developers can add page media"
+  on public.lounge_media
+  for insert
+  to authenticated
+  with check (public.is_lounge_staff() and created_by = auth.uid());
+
+drop policy if exists "Helpers and Developers can update page media" on public.lounge_media;
+create policy "Helpers and Developers can update page media"
+  on public.lounge_media
+  for update
+  to authenticated
+  using (public.is_lounge_staff())
+  with check (public.is_lounge_staff());
+
+insert into public.lounge_media (person_slug, kind, title, embed_url) values
+  ('micheal-phelps', 'video', 'Unstable SMP: The Mafia', 'https://www.youtube-nocookie.com/embed/CpNP39w2hEk'),
+  ('micheal-phelps', 'video', 'STELLA LEFTY - Boston', 'https://www.youtube-nocookie.com/embed/VrChRBLw3OQ'),
+  ('micheal-collins', 'video', 'Tom & Jerry in Full Screen', 'https://www.youtube-nocookie.com/embed/t0Q2otsqC4I'),
+  ('colin-o', 'video', 'Lil Baby - Dead Fresh', 'https://www.youtube-nocookie.com/embed/PXxbEfhtDiM'),
+  ('colin-o', 'video', 'Kodak Black - Already', 'https://www.youtube-nocookie.com/embed/vhmpbXsAl9c'),
+  ('colin-o', 'video', 'Don Toliver - E85', 'https://www.youtube-nocookie.com/embed/7GwLnsVUwHY'),
+  ('colin-o', 'video', 'Drake - Headlines', 'https://www.youtube-nocookie.com/embed/cimoNqiulUE'),
+  ('colin-o', 'video', 'Kanye West - Homecoming', 'https://www.youtube-nocookie.com/embed/LQ488QrqGE4'),
+  ('colin-o', 'video', 'Don Toliver - Excavator', 'https://www.youtube-nocookie.com/embed/_SrosL0WdOQ'),
+  ('aidan', 'video', 'Lil Baby - Dead Fresh', 'https://www.youtube-nocookie.com/embed/PXxbEfhtDiM'),
+  ('aidan', 'video', 'Don Toliver - No Pole', 'https://www.youtube-nocookie.com/embed/nM_ZUbSIA0Q'),
+  ('aidan', 'video', 'Djo - End Of Beginning (Lyrics)', 'https://www.youtube-nocookie.com/embed/B3Z4XGAxJB0'),
+  ('aidan', 'video', 'The Killers - Mr Brightside (Lyrics)', 'https://www.youtube-nocookie.com/embed/j8tZs6G_h7U'),
+  ('aidan', 'video', 'Mustard - Pure Water [Lyrics/Lyric] Ft. Migos', 'https://www.youtube-nocookie.com/embed/hVsEbUm-kb0'),
+  ('aidan', 'game', 'Tetr.io-style game', 'https://telatro.tomcat.sh/game/'),
+  ('aidan', 'game', 'Retro Bowl', 'https://falloutscript.github.io/Retrobowl/'),
+  ('christian', 'video', 'Rebecca Black - Friday', 'https://www.youtube-nocookie.com/embed/WqVIvVh-dkI'),
+  ('christian', 'video', 'ELO - Mr Blue Sky', 'https://www.youtube-nocookie.com/embed/sQiPtneudlo'),
+  ('christian', 'video', 'Pharrell Williams - Double Life', 'https://www.youtube-nocookie.com/embed/fWtn6RMNiok'),
+  ('christian', 'video', 'Avicii - The Nights (Lyrics)', 'https://www.youtube-nocookie.com/embed/H78YW7ycuwI'),
+  ('christian', 'video', 'Post Malone, Swae Lee - Sunflower', 'https://www.youtube-nocookie.com/embed/ApXoWvfEYVU'),
+  ('christian', 'video', 'Imagine Dragons - Believer', 'https://www.youtube-nocookie.com/embed/W0DM5lcj6mw'),
+  ('christian', 'video', 'Redbone - Come and Get Your Love', 'https://www.youtube-nocookie.com/embed/wFwYcHjP-YU'),
+  ('christian', 'video', 'Imagine Dragons - Thunder', 'https://www.youtube-nocookie.com/embed/GtEvysh1654'),
+  ('christian', 'video', 'The Buggles - Video Killed The Radio Star (Lyrics)', 'https://www.youtube-nocookie.com/embed/XMEN_FsVg_c'),
+  ('christian', 'video', 'Silver - Wham Bam Shang-A-Lang', 'https://www.youtube-nocookie.com/embed/M5iSEdo5VNI'),
+  ('christian', 'video', 'Blue Swede - Hooked On A Feeling', 'https://www.youtube-nocookie.com/embed/Bo-qweh7nbQ'),
+  ('christian', 'game', 'Retro Bowl', 'https://falloutscript.github.io/Retrobowl/'),
+  ('henry', 'game', 'Tetr.io-style game', 'https://telatro.tomcat.sh/game/')
+on conflict (person_slug, kind, embed_url) do nothing;
+
+notify pgrst, 'reload schema';
+
 create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   username text not null default 'Lounge member' check (char_length(trim(username)) between 1 and 30),
